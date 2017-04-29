@@ -7,7 +7,8 @@
     "src"
   ],
   "exposed-modules": [
-    "Slime"
+    "Slime",
+    "Slime.Engine"
   ],
   "dependencies": {
     "elm-lang/core": "5.0.0 <= v < 6.0.0",

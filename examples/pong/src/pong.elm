@@ -15,6 +15,7 @@ import Game.TwoD as Game
 import Game.TwoD.Render as Render
 import Game.TwoD.Camera as Camera exposing (Camera)
 import Slime exposing (..)
+import Slime.Engine exposing (..)
 
 
 type alias Rect =
