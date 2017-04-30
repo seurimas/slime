@@ -7,10 +7,14 @@ module Slime.Engine exposing (System(..), Listener(..), Engine, initEngine, appl
 import Slime exposing (EntityDeletor, EntityID)
 
 
-type System world
+type System world msg
     = TimeAndDeletes (Float -> world -> ( world, List EntityID ))
     | Time (Float -> world -> world)
     | Deletes (world -> ( world, List EntityID ))
+    | TimeAndCommandsDeletes (Float -> world -> ( world, Cmd msg, List EntityID ))
+    | TimeAndCommands (Float -> world -> ( world, Cmd msg ))
+    | CommandsDeletes (world -> ( world, Cmd msg, List EntityID ))
+    | Commands (world -> ( world, Cmd msg ))
     | Basic (world -> world)
 
 
@@ -21,12 +25,12 @@ type Listener world msg
 
 type alias Engine world msg =
     { deleteEntity : EntityDeletor world
-    , systems : List (System world)
+    , systems : List (System world msg)
     , listeners : List (Listener world msg)
     }
 
 
-initEngine : EntityDeletor world -> List (System world) -> List (Listener world msg) -> Engine world msg
+initEngine : EntityDeletor world -> List (System world msg) -> List (Listener world msg) -> Engine world msg
 initEngine deleteEntity systems listeners =
     { deleteEntity = deleteEntity
     , systems = systems
@@ -39,7 +43,7 @@ sweepDeletes deletes world =
     List.foldr (flip deletes) world
 
 
-applySystem : EntityDeletor world -> System world -> world -> Float -> world
+applySystem : EntityDeletor world -> System world msg -> world -> Float -> ( world, Cmd msg )
 applySystem deletor system world deltaTime =
     case system of
         TimeAndDeletes func ->
@@ -47,25 +51,57 @@ applySystem deletor system world deltaTime =
                 ( steppedWorld, deletions ) =
                     func deltaTime world
             in
-                sweepDeletes deletor steppedWorld deletions
+                sweepDeletes deletor steppedWorld deletions ! []
 
         Time func ->
-            func deltaTime world
+            func deltaTime world ! []
 
         Deletes func ->
             let
                 ( steppedWorld, deletions ) =
                     func world
             in
-                sweepDeletes deletor steppedWorld deletions
+                sweepDeletes deletor steppedWorld deletions ! []
 
-        Basic func ->
+        TimeAndCommandsDeletes func ->
+            let
+                ( steppedWorld, commands, deletions ) =
+                    func deltaTime world
+            in
+                ( sweepDeletes deletor steppedWorld deletions
+                , commands
+                )
+
+        TimeAndCommands func ->
+            func deltaTime world
+
+        CommandsDeletes func ->
+            let
+                ( steppedWorld, commands, deletions ) =
+                    func world
+            in
+                ( sweepDeletes deletor steppedWorld deletions
+                , commands
+                )
+
+        Commands func ->
             func world
 
+        Basic func ->
+            func world ! []
 
-applySystems : Engine world msg -> world -> Float -> world
+
+applySystems : Engine world msg -> world -> Float -> ( world, Cmd msg )
 applySystems engine world deltaTime =
-    List.foldl (\system -> \world -> applySystem engine.deleteEntity system world deltaTime) world engine.systems
+    let
+        merge system ( world, cmd ) =
+            let
+                ( newWorld, addedCommands ) =
+                    applySystem engine.deleteEntity system world deltaTime
+            in
+                ( newWorld, Cmd.batch [ cmd, addedCommands ] )
+    in
+        List.foldl merge (world ! []) engine.systems
 
 
 listen : EntityDeletor world -> Listener world msg -> world -> msg -> world

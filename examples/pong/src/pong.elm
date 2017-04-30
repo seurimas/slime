@@ -4,6 +4,7 @@ module Pong exposing (main)
 @docs main
 -}
 
+import Random
 import Dict exposing (Dict)
 import Html exposing (Html)
 import Color exposing (Color)
@@ -85,6 +86,7 @@ type Msg
     = Tick Float
     | KeyDown KeyCode
     | KeyUp KeyCode
+    | NewBall Int
 
 
 transforms : ComponentSpec Rect World
@@ -185,7 +187,7 @@ engine =
         systems =
             [ Time moveBalls
             , Basic keepBalls
-            , Deletes scoreBalls
+            , CommandsDeletes scoreBalls
             , Basic bounceBalls
             , Time movePaddles
             , TimeAndDeletes updateScores
@@ -193,6 +195,7 @@ engine =
 
         listeners =
             [ Listen setPaddleKeys
+            , Listen spawnNewBalls
             ]
     in
         Slime.Engine.initEngine deletor systems listeners
@@ -280,7 +283,7 @@ updateScores deltaTime world =
         ( updatedWorld, List.filter (\e -> e.a.progress > e.a.lifetime) (entities scores updatedWorld) |> List.map .id )
 
 
-scoreBalls : World -> ( World, List EntityID )
+scoreBalls : World -> ( World, Cmd Msg, List EntityID )
 scoreBalls world =
     let
         isScored e2 =
@@ -309,16 +312,8 @@ scoreBalls world =
                 }
 
         newBall e2 =
-            let
-                ball =
-                    e2.a
-
-                transform =
-                    e2.b
-            in
-                { a = ball
-                , b = { transform | x = 247.5, y = 247.5 }
-                }
+            Random.int 0 6
+                |> Random.generate NewBall
 
         scoredBalls =
             entities2 balls transforms world
@@ -337,11 +332,45 @@ scoreBalls world =
 
         ( updatedWorld1, _ ) =
             spawnEntities scores world newScores
-
-        ( updatedWorld2, _ ) =
-            spawnEntities2 balls transforms updatedWorld1 newBalls
     in
-        ( { updatedWorld2 | score = updatedScore }, List.map .id scoredBalls )
+        ( { updatedWorld1 | score = updatedScore }, Cmd.batch newBalls, List.map .id scoredBalls )
+
+
+directionToVelocity : Int -> ( Float, Float )
+directionToVelocity index =
+    case index of
+        0 ->
+            ( -80, -100 )
+
+        1 ->
+            ( 80, -100 )
+
+        2 ->
+            ( -80, 100 )
+
+        3 ->
+            ( 80, 100 )
+
+        4 ->
+            ( 100, 80 )
+
+        _ ->
+            ( -80, -100 )
+
+
+spawnNewBalls : Msg -> World -> World
+spawnNewBalls msg world =
+    case msg of
+        NewBall dir ->
+            let
+                ( vx, vy ) =
+                    directionToVelocity dir
+            in
+                spawnBall ( 247.5, 247.5, vx, vy ) world
+                    |> Tuple.first
+
+        _ ->
+            world
 
 
 updateKeyState key isDown paddle =
@@ -526,8 +555,13 @@ update msg model =
             let
                 deltaMs =
                     delta / 1000
+
+                ( updatedWorld, commands ) =
+                    updateWorld model.world deltaMs
             in
-                { model | world = updateWorld model.world deltaMs } ! []
+                ( { model | world = updatedWorld }
+                , commands
+                )
 
         _ ->
             { model | world = takeMessage model.world msg } ! []
