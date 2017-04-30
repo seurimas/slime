@@ -15,7 +15,7 @@ import Game.TwoD as Game
 import Game.TwoD.Render as Render
 import Game.TwoD.Camera as Camera exposing (Camera)
 import Slime exposing (..)
-import Slime.Engine exposing (..)
+import Slime.Engine exposing (System(..), Engine)
 
 
 type alias Rect =
@@ -78,14 +78,14 @@ type Msg
 transforms : ComponentSpec Rect World
 transforms =
     { getter = .transforms
-    , setter = (\rec -> \comps -> { rec | transforms = comps })
+    , setter = (\world -> \comps -> { world | transforms = comps })
     }
 
 
 balls : ComponentSpec Ball World
 balls =
     { getter = .balls
-    , setter = (\rec -> \comps -> { rec | balls = comps })
+    , setter = (\world -> \comps -> { world | balls = comps })
     }
 
 
@@ -111,7 +111,7 @@ spawnBall ( x, y, vx, vy ) world =
 paddles : ComponentSpec Paddle World
 paddles =
     { getter = .paddles
-    , setter = (\rec -> \comps -> { rec | paddles = comps })
+    , setter = (\world -> \comps -> { world | paddles = comps })
     }
 
 
@@ -150,6 +150,23 @@ spawnPaddles world =
             |> Tuple.first
             >> flip paddleSpawner { a = rightRect, b = rightInput }
             |> Tuple.first
+
+
+engine : Engine World
+engine =
+    let
+        deletor =
+            deleteEntity transforms
+                &-> balls
+                &-> paddles
+
+        systems =
+            [ Time moveBalls
+            , Basic keepBalls
+            , Basic bounceBalls
+            ]
+    in
+        Slime.Engine.initEngine deletor systems
 
 
 world : World
@@ -281,6 +298,10 @@ subs m =
         ]
 
 
+updateWorld =
+    Slime.Engine.applySystems engine
+
+
 update msg model =
     case msg of
         Tick delta ->
@@ -288,7 +309,7 @@ update msg model =
                 deltaMs =
                     delta / 1000
             in
-                { model | world = model.world |> moveBalls deltaMs |> keepBalls |> bounceBalls } ! []
+                { model | world = updateWorld model.world deltaMs } ! []
 
         Keys kMsg ->
             let

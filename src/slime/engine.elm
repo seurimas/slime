@@ -1,22 +1,33 @@
-module Slime.Engine exposing (..)
+module Slime.Engine exposing (System(..), Engine, initEngine, applySystems)
 
-import Slime exposing (deletor, (&>), ComponentDeletor)
+{-|
 
+-}
 
-type System rec
-    = TimeAndDeletes (Float -> rec -> ( rec, List Int ))
-    | Time (Float -> rec -> rec)
-    | Deletes (rec -> ( rec, List Int ))
-    | Basic (rec -> rec)
+import Slime exposing (EntityDeletor)
 
 
-type alias Engine rec =
-    { deleteEntity : ComponentDeletor rec
-    , systems : List (System rec)
+type System world
+    = TimeAndDeletes (Float -> world -> ( world, List Int ))
+    | Time (Float -> world -> world)
+    | Deletes (world -> ( world, List Int ))
+    | Basic (world -> world)
+
+
+type alias Engine world =
+    { deleteEntity : EntityDeletor world
+    , systems : List (System world)
     }
 
 
-applySystem : ComponentDeletor rec -> System rec -> rec -> Float -> rec
+initEngine : EntityDeletor world -> List (System world) -> Engine world
+initEngine deleteEntity systems =
+    { deleteEntity = deleteEntity
+    , systems = systems
+    }
+
+
+applySystem : EntityDeletor world -> System world -> world -> Float -> world
 applySystem deletor system world deltaTime =
     let
         sweep world deletes =
@@ -44,6 +55,6 @@ applySystem deletor system world deltaTime =
                 func world
 
 
-applySystems : Engine rec -> rec -> Float -> rec
+applySystems : Engine world -> world -> Float -> world
 applySystems engine world deltaTime =
     List.foldr (\system -> \world -> applySystem engine.deleteEntity system world deltaTime) world engine.systems
