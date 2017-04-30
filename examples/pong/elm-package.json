@@ -13,7 +13,7 @@
   "dependencies": {
     "elm-lang/core": "5.0.0 <= v < 6.0.0",
     "elm-lang/html": "2.0.0 <= v < 3.0.0",
-    "Zinggi/elm-2d-game": "2.1.0 <= v < 3.0.0",
+    "Zinggi/elm-2d-game": "3.0.0 <= v < 4.0.0",
     "elm-lang/animation-frame": "1.0.1 <= v < 2.0.0",
     "elm-lang/keyboard": "1.0.1 <= v < 2.0.0",
     "ohanhi/keyboard-extra": "1.2.0 <= v < 2.0.0",

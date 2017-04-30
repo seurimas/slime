@@ -1,4 +1,4 @@
-module Slime exposing (EntityID, EntitySet, ComponentSpec, ComponentSet, EntitySetter, EntitySetter2, EntityDeletor, initComponents, initIdSource, deleteEntity, (&->), Entity, Entity2, Entity3, spawnEntity, spawnEntity2, setEntity, setEntity2, entities, entities2, getComponent, map, stepEntities, stepEntities2)
+module Slime exposing (EntityID, EntitySet, ComponentSpec, ComponentSet, EntitySetter, EntitySetter2, EntityDeletor, initComponents, initIdSource, deleteEntity, (&->), Entity, Entity2, Entity3, spawnEntity, spawnEntity2, setEntity, setEntity2, entities, entities2, getComponent, map, stepEntities, stepEntities2, spawnEntities, spawnEntities2)
 
 {-| This library provides an easy way to construct entity-component-system style
 codeflow in Elm.
@@ -18,8 +18,11 @@ codeflow in Elm.
 # Retrieval
 @docs entities, entities2, getComponent
 
-# Creation and setting
-@docs setEntity, setEntity2, spawnEmpty, spawnEntity, spawnEntity2
+# Updates
+@docs setEntity, setEntity2
+
+# Creation
+@docs spawnEmpty, spawnEntity, spawnEntity2, spawnEntities, spawnEntities2
 -}
 
 import Array exposing (Array, length, append, push, get, set, repeat, indexedMap, toList)
@@ -220,6 +223,20 @@ spawnEntity { getter, setter } entitySet { a } =
         ( setter updatedSet updatedComponents, id )
 
 
+{-| -}
+spawnEntities : ComponentSpec a (EntitySet world) -> EntitySet world -> List { a : a } -> ( EntitySet world, List EntityID )
+spawnEntities spec world ents =
+    let
+        merge spawn ( world, es ) =
+            let
+                ( newWorld, newSpawn ) =
+                    spawnEntity spec world spawn
+            in
+                ( newWorld, es ++ [ newSpawn ] )
+    in
+        List.foldr merge ( world, [] ) ents
+
+
 spawnEntity2 : ComponentSpec a (EntitySet world) -> ComponentSpec b (EntitySet world) -> EntitySet world -> { a : a, b : b } -> ( EntitySet world, EntityID )
 spawnEntity2 specA specB entitySet { a, b } =
     let
@@ -235,6 +252,20 @@ spawnEntity2 specA specB entitySet { a, b } =
                 |> setComponent id b
     in
         ( specA.setter updatedSet updatedComponentsA |> flip specB.setter updatedComponentsB, id )
+
+
+{-| -}
+spawnEntities2 : ComponentSpec a (EntitySet world) -> ComponentSpec b (EntitySet world) -> EntitySet world -> List { a : a, b : b } -> ( EntitySet world, List EntityID )
+spawnEntities2 specA specB world ents =
+    let
+        merge spawn ( world, es ) =
+            let
+                ( newWorld, newSpawn ) =
+                    spawnEntity2 specA specB world spawn
+            in
+                ( newWorld, es ++ [ newSpawn ] )
+    in
+        List.foldr merge ( world, [] ) ents
 
 
 setComponent : EntityID -> a -> ComponentSet a -> ComponentSet a

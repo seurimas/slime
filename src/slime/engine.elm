@@ -65,7 +65,7 @@ applySystem deletor system world deltaTime =
 
 applySystems : Engine world msg -> world -> Float -> world
 applySystems engine world deltaTime =
-    List.foldr (\system -> \world -> applySystem engine.deleteEntity system world deltaTime) world engine.systems
+    List.foldl (\system -> \world -> applySystem engine.deleteEntity system world deltaTime) world engine.systems
 
 
 listen : EntityDeletor world -> Listener world msg -> world -> msg -> world
@@ -84,4 +84,4 @@ listen deletor listener world msg =
 
 applyMessage : Engine world msg -> world -> msg -> world
 applyMessage engine world msg =
-    List.foldr (\listener -> \world -> listen engine.deleteEntity listener world msg) world engine.listeners
+    List.foldl (\listener -> \world -> listen engine.deleteEntity listener world msg) world engine.listeners

@@ -56,11 +56,23 @@ type alias Paddle =
     }
 
 
+type alias Score =
+    { x : Float
+    , y : Float
+    , color : Color
+    , radius : Float
+    , lifetime : Float
+    , progress : Float
+    }
+
+
 type alias World =
     EntitySet
         { transforms : ComponentSet Rect
         , balls : ComponentSet Ball
         , paddles : ComponentSet Paddle
+        , scores : ComponentSet Score
+        , score : ( Int, Int )
         }
 
 
@@ -115,6 +127,13 @@ paddles =
     }
 
 
+scores : ComponentSpec Score World
+scores =
+    { getter = .scores
+    , setter = (\world -> \comps -> { world | scores = comps })
+    }
+
+
 spawnPaddles world =
     let
         paddleSpawner =
@@ -161,12 +180,15 @@ engine =
             deleteEntity transforms
                 &-> balls
                 &-> paddles
+                &-> scores
 
         systems =
             [ Time moveBalls
             , Basic keepBalls
+            , Deletes scoreBalls
             , Basic bounceBalls
             , Time movePaddles
+            , TimeAndDeletes updateScores
             ]
 
         listeners =
@@ -182,6 +204,8 @@ world =
     , transforms = initComponents
     , balls = initComponents
     , paddles = initComponents
+    , scores = initComponents
+    , score = ( 0, 0 )
     }
         |> spawnBall ( 247.5, 247.5, 100, 80 )
         |> Tuple.first
@@ -245,6 +269,79 @@ keepBalls =
                     e2
     in
         stepEntities2 balls transforms maybeBounce
+
+
+updateScores : Float -> World -> ( World, List EntityID )
+updateScores deltaTime world =
+    let
+        updatedWorld =
+            stepEntities scores (\score -> { score | progress = score.progress + deltaTime }) world
+    in
+        ( updatedWorld, List.filter (\e -> e.a.progress > e.a.lifetime) (entities scores updatedWorld) |> List.map .id )
+
+
+scoreBalls : World -> ( World, List EntityID )
+scoreBalls world =
+    let
+        isScored e2 =
+            let
+                ball =
+                    e2.a
+
+                transform =
+                    e2.b
+            in
+                transform.x == 0 || transform.x == 500 - transform.width
+
+        scoreMe e2 =
+            let
+                transform =
+                    e2.b
+            in
+                { a =
+                    { x = transform.x + transform.width / 2
+                    , y = transform.y + transform.height / 2
+                    , color = Color.blue
+                    , radius = 50
+                    , lifetime = 1
+                    , progress = 0
+                    }
+                }
+
+        newBall e2 =
+            let
+                ball =
+                    e2.a
+
+                transform =
+                    e2.b
+            in
+                { a = ball
+                , b = { transform | x = 247.5, y = 247.5 }
+                }
+
+        scoredBalls =
+            entities2 balls transforms world
+                |> List.filter isScored
+
+        newScores =
+            List.map scoreMe scoredBalls
+
+        updatedScore =
+            ( Tuple.first world.score + List.length (List.filter (\score -> score.a.x > 400) newScores)
+            , Tuple.second world.score + List.length (List.filter (\score -> score.a.x < 100) newScores)
+            )
+
+        newBalls =
+            List.map newBall scoredBalls
+
+        ( updatedWorld1, _ ) =
+            spawnEntities scores world newScores
+
+        ( updatedWorld2, _ ) =
+            spawnEntities2 balls transforms updatedWorld1 newBalls
+    in
+        ( { updatedWorld2 | score = updatedScore }, List.map .id scoredBalls )
 
 
 updateKeyState key isDown paddle =
@@ -340,11 +437,59 @@ bounceBalls world =
 renderTransforms =
     Slime.map transforms
         (\transform ->
-            Render.rectangle
+            Render.shape Render.rectangle
                 { color = transform.color
                 , position = ( transform.x, transform.y )
                 , size = ( transform.width, transform.height )
                 }
+        )
+
+
+setAlpha : Color -> Float -> Color
+setAlpha color alpha =
+    let
+        { red, green, blue } =
+            Color.toRgb color
+    in
+        Color.rgba red green blue alpha
+
+
+lerp : Color -> Color -> Float -> Color
+lerp c1 c2 progress =
+    let
+        rgb1 =
+            Color.toRgb c1
+
+        rgb2 =
+            Color.toRgb c2
+
+        red =
+            round (toFloat rgb1.red + toFloat (rgb2.red - rgb1.red) * progress * progress)
+
+        green =
+            round (toFloat rgb1.green + toFloat (rgb2.green - rgb1.green) * progress * progress)
+
+        blue =
+            round (toFloat rgb1.blue + toFloat (rgb2.blue - rgb1.blue) * progress * progress)
+    in
+        Color.rgb red green blue
+
+
+renderScores =
+    Slime.map scores
+        (\score ->
+            let
+                scale =
+                    clamp 0 1 (score.progress / score.lifetime)
+
+                size =
+                    score.radius * scale
+            in
+                Render.shape Render.circle
+                    { color = lerp score.color Color.white scale
+                    , position = ( score.x - size / 2, score.y - size / 2 )
+                    , size = ( size, size )
+                    }
         )
 
 
@@ -354,7 +499,9 @@ render { world } =
         , camera = Camera.fixedHeight 500 ( 250, 250 )
         , size = ( 500, 500 )
         }
-        (renderTransforms world)
+        ((renderTransforms world)
+            ++ (renderScores world)
+        )
 
 
 subs m =
