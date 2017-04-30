@@ -30,18 +30,10 @@ type alias Rect =
 
 
 collide rect1 rect2 =
-    rect1.x
-        + rect1.width
-        > rect2.x
-        && rect1.x
-        < rect2.x
-        + rect2.width
-        && rect1.y
-        + rect1.height
-        > rect2.y
-        && rect1.y
-        < rect2.y
-        + rect2.height
+    (rect1.x + rect1.width > rect2.x)
+        && (rect1.x < rect2.x + rect2.width)
+        && (rect1.y + rect1.height > rect2.y)
+        && (rect1.y < rect2.y + rect2.height)
 
 
 type alias Ball =
@@ -213,23 +205,25 @@ world =
     }
         |> spawnBall ( 247.5, 247.5, 100, 80 )
         |> Tuple.first
-        |> spawnBall ( 247.5, 247.5, 80, 100 )
-        |> Tuple.first
-        |> spawnBall ( 247.5, 247.5, -100, 80 )
-        |> Tuple.first
-        |> spawnBall ( 247.5, 247.5, -80, 100 )
-        |> Tuple.first
-        |> spawnBall ( 247.5, 247.5, 100, -80 )
-        |> Tuple.first
-        |> spawnBall ( 247.5, 247.5, 80, -100 )
-        |> Tuple.first
-        |> spawnBall ( 247.5, 247.5, -100, -80 )
-        |> Tuple.first
-        |> spawnBall ( 247.5, 247.5, -80, -100 )
-        |> Tuple.first
-        |> spawnBall ( 40, 230, -80, 100 )
-        |> Tuple.first
-        |> spawnPaddles
+        {- |> spawnBall ( 247.5, 247.5, 80, 100 )
+           |> Tuple.first
+           |> spawnBall ( 247.5, 247.5, -100, 80 )
+           |> Tuple.first
+           |> spawnBall ( 247.5, 247.5, -80, 100 )
+           |> Tuple.first
+           |> spawnBall ( 247.5, 247.5, 100, -80 )
+           |> Tuple.first
+           |> spawnBall ( 247.5, 247.5, 80, -100 )
+           |> Tuple.first
+           |> spawnBall ( 247.5, 247.5, -100, -80 )
+           |> Tuple.first
+           |> spawnBall ( 247.5, 247.5, -80, -100 )
+           |> Tuple.first
+           |> spawnBall ( 40, 230, -80, 100 )
+           |> Tuple.first
+        -}
+        |>
+            spawnPaddles
 
 
 model : Model
@@ -564,7 +558,7 @@ updateWorld =
 
 
 takeMessage =
-    Slime.Engine.applyMessage engine
+    Slime.Engine.applyListeners engine
 
 
 update msg model =
@@ -582,7 +576,13 @@ update msg model =
                 )
 
         _ ->
-            { model | world = takeMessage model.world msg } ! []
+            let
+                ( updatedWorld, commands ) =
+                    takeMessage model.world msg
+            in
+                ( { model | world = updatedWorld }
+                , commands
+                )
 
 
 {-|
