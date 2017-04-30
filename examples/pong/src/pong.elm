@@ -6,7 +6,8 @@ module Pong exposing (main)
 
 import Random
 import Dict exposing (Dict)
-import Html exposing (Html)
+import Html exposing (Html, div)
+import Html.Attributes exposing (style)
 import Color exposing (Color)
 import Char exposing (toCode)
 import AnimationFrame
@@ -522,15 +523,32 @@ renderScores =
         )
 
 
-render { world } =
-    Game.render
-        { time = 0
-        , camera = Camera.fixedHeight 500 ( 250, 250 )
-        , size = ( 500, 500 )
-        }
-        ((renderTransforms world)
-            ++ (renderScores world)
-        )
+ui { world } =
+    div
+        [ style
+            [ ( "position", "absolute" )
+            , ( "top", "0px" )
+            , ( "left", "230px" )
+            , ( "width", "40px" )
+            , ( "text-align", "center" )
+            ]
+        ]
+        [ Html.text (toString world.score) ]
+
+
+render ({ world } as model) =
+    div
+        []
+        [ Game.render
+            { time = 0
+            , camera = Camera.fixedHeight 500 ( 250, 250 )
+            , size = ( 500, 500 )
+            }
+            ((renderTransforms world)
+                ++ (renderScores world)
+            )
+        , ui model
+        ]
 
 
 subs m =
