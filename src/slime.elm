@@ -1,4 +1,4 @@
-module Slime exposing (EntityID, EntitySet, ComponentSpec, ComponentSet, EntitySetter, EntitySetter2, EntityDeletor, initComponents, initIdSource, deleteEntity, (&->), Entity, Entity2, Entity3, spawnEntity, spawnEntity2, setEntity, setEntity2, entities, entities2, getComponent, map, stepComponents, stepEntities, stepEntities2)
+module Slime exposing (EntityID, EntitySet, ComponentSpec, ComponentSet, EntitySetter, EntitySetter2, EntityDeletor, initComponents, initIdSource, deleteEntity, (&->), Entity, Entity2, Entity3, spawnEntity, spawnEntity2, setEntity, setEntity2, entities, entities2, getComponent, map, stepEntities, stepEntities2)
 
 {-| This library provides an easy way to construct entity-component-system style
 codeflow in Elm.
@@ -7,7 +7,7 @@ codeflow in Elm.
 @docs EntityID, EntitySet, ComponentSpec, ComponentSet, EntitySetter, EntitySetter2, EntitySetter3, EntityDeletor, Entity, Entity2, Entity3
 
 # Updates and Maps
-@docs map, stepComponents, stepEntities, stepEntities2
+@docs map, stepEntities, stepEntities2
 
 # Initialization
 @docs init
@@ -252,8 +252,6 @@ setComponent index value components =
         }
 
 
-{-| Useful for time-based components which simply need to be updated incrementally
--}
 stepComponents : (a -> a) -> ComponentSet a -> ComponentSet a
 stepComponents update components =
     let

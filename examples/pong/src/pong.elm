@@ -10,12 +10,12 @@ import Color exposing (Color)
 import Char exposing (toCode)
 import AnimationFrame
 import Char exposing (KeyCode)
-import Keyboard.Extra
+import Keyboard
 import Game.TwoD as Game
 import Game.TwoD.Render as Render
 import Game.TwoD.Camera as Camera exposing (Camera)
 import Slime exposing (..)
-import Slime.Engine exposing (System(..), Engine)
+import Slime.Engine exposing (System(..), Listener(..), Engine)
 
 
 type alias Rect =
@@ -42,18 +42,18 @@ collide rect1 rect2 =
         + rect2.height
 
 
-type alias ControlSet =
-    { up : KeyCode
-    , down : KeyCode
-    }
-
-
 type alias Ball =
     { vx : Float, vy : Float }
 
 
 type alias Paddle =
-    { inputState : ( Bool, Bool ), inputScheme : ControlSet }
+    { inputState : ( Bool, Bool )
+    , inputScheme :
+        { up : KeyCode
+        , down : KeyCode
+        }
+    , speed : Float
+    }
 
 
 type alias World =
@@ -66,13 +66,13 @@ type alias World =
 
 type alias Model =
     { world : World
-    , keys : Keyboard.Extra.Model
     }
 
 
 type Msg
     = Tick Float
-    | Keys Keyboard.Extra.Msg
+    | KeyDown KeyCode
+    | KeyUp KeyCode
 
 
 transforms : ComponentSpec Rect World
@@ -139,11 +139,13 @@ spawnPaddles world =
         leftInput =
             { inputState = ( False, False )
             , inputScheme = { up = toCode 'W', down = toCode 'S' }
+            , speed = 200
             }
 
         rightInput =
             { inputState = ( False, False )
             , inputScheme = { up = toCode 'I', down = toCode 'K' }
+            , speed = 200
             }
     in
         paddleSpawner world { a = leftRect, b = leftInput }
@@ -152,7 +154,7 @@ spawnPaddles world =
             |> Tuple.first
 
 
-engine : Engine World
+engine : Engine World Msg
 engine =
     let
         deletor =
@@ -164,9 +166,14 @@ engine =
             [ Time moveBalls
             , Basic keepBalls
             , Basic bounceBalls
+            , Time movePaddles
+            ]
+
+        listeners =
+            [ Listen setPaddleKeys
             ]
     in
-        Slime.Engine.initEngine deletor systems
+        Slime.Engine.initEngine deletor systems listeners
 
 
 world : World
@@ -200,7 +207,6 @@ world =
 model : Model
 model =
     { world = world
-    , keys = Tuple.first Keyboard.Extra.init
     }
 
 
@@ -241,8 +247,68 @@ keepBalls =
         stepEntities2 balls transforms maybeBounce
 
 
+updateKeyState key isDown paddle =
+    if paddle.inputScheme.up == key then
+        { paddle | inputState = ( isDown, Tuple.second paddle.inputState ) }
+    else if paddle.inputScheme.down == key then
+        { paddle | inputState = ( Tuple.first paddle.inputState, isDown ) }
+    else
+        paddle
+
+
+setPaddleKeys : Msg -> World -> World
+setPaddleKeys msg =
+    case msg of
+        KeyUp key ->
+            stepEntities paddles (updateKeyState key False)
+
+        KeyDown key ->
+            stepEntities paddles (updateKeyState key True)
+
+        _ ->
+            identity
+
+
+movement : ( Bool, Bool ) -> Float
+movement ( up, down ) =
+    if up && down then
+        0
+    else if up then
+        1
+    else if down then
+        -1
+    else
+        0
+
+
+movePaddles : Float -> World -> World
+movePaddles delta =
+    let
+        movePaddle e2 =
+            let
+                paddle =
+                    e2.a
+
+                transform =
+                    e2.b
+
+                moved =
+                    movement paddle.inputState
+
+                newY =
+                    (transform.y + delta * moved * paddle.speed)
+                        |> clamp 0 450
+            in
+                if moved /= 0 then
+                    { e2 | b = { transform | y = newY } }
+                else
+                    e2
+    in
+        stepEntities2 paddles transforms movePaddle
+
+
 bounceBalls : World -> World
-bounceBalls =
+bounceBalls world =
     let
         bounce e1 e2 =
             let
@@ -268,7 +334,7 @@ bounceBalls =
         paddleList =
             entities2 paddles transforms world
     in
-        stepEntities2 balls transforms (\e2 -> List.foldr bounce e2 paddleList)
+        stepEntities2 balls transforms (\e2 -> List.foldr bounce e2 paddleList) world
 
 
 renderTransforms =
@@ -293,13 +359,18 @@ render { world } =
 
 subs m =
     Sub.batch
-        [ Sub.map Keys Keyboard.Extra.subscriptions
+        [ Keyboard.downs KeyDown
+        , Keyboard.ups KeyUp
         , AnimationFrame.diffs Tick
         ]
 
 
 updateWorld =
     Slime.Engine.applySystems engine
+
+
+takeMessage =
+    Slime.Engine.applyMessage engine
 
 
 update msg model =
@@ -311,12 +382,8 @@ update msg model =
             in
                 { model | world = updateWorld model.world deltaMs } ! []
 
-        Keys kMsg ->
-            let
-                ( kModel, kCmd ) =
-                    Keyboard.Extra.update kMsg model.keys
-            in
-                { model | keys = kModel } ! [ Cmd.map Keys kCmd ]
+        _ ->
+            { model | world = takeMessage model.world msg } ! []
 
 
 {-|
