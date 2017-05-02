@@ -128,7 +128,7 @@
   },
   {
     "name": "Slime",
-    "comment": " Experimental\n\nThis library provides an easy way to construct entity-component-system style\ncodeflow in Elm. It achieves this mostly by leveraging currying and getter/setters. For example:\n\n    type alias World =\n        EntitySet\n            { transforms : ComponentSet Rect\n            , balls : ComponentSet Ball\n            }\n\n    transforms : ComponentSpec Rect World\n    transforms =\n        { getter: .transforms,\n        , setter: (\\world -> \\comps -> {world | transforms = comps})\n        }\n\n\n    balls : ComponentSpec Ball World\n    balls =\n        { getter: .balls,\n        , setter: (\\world -> \\comps -> {world | balls = comps})\n        }\n\n    moveBalls : Float -> World -> World\n    moveBalls delta =\n        -- ...\n          stepEntities2 balls transforms (\\ent2 -> { ent2 | b = addVelocity ent2.a ent2.b delta })\n\nstepEntities2 goes through all the balls (any entity with a ball component and transform component)\nin this example and updates their location based on their velocity and the time elapsed.\n\nBecause moveBalls' type signature has no concept of the components involved, these systems can easily be\ncomposed to operate in sequence to create an ECS Engine.\n\n# Types\n@docs EntityID, EntitySet, ComponentSpec, ComponentSet, EntityDeletor, Entity, Entity2, Entity3\n\n# Updates and Maps\n@docs map, stepEntities, stepEntities2\n\n# Initialization\n@docs initComponents, initIdSource\n\n# Deletion\n@docs deleteEntity, (&->)\n\n# Retrieval\n@docs entities, entities2, getComponent\n\n# Updates\n@docs setEntity, setEntity2\n\n# Creation\n@docs spawnEmpty, spawnEntity, spawnEntity2, spawnEntities, spawnEntities2\n",
+    "comment": " Experimental\n\nThis library provides an easy way to construct entity-component-system style\ncodeflow in Elm. It achieves this mostly by leveraging currying and getter/setters. For example:\n\n    type alias World =\n        EntitySet\n            { transforms : ComponentSet Rect\n            , balls : ComponentSet Ball\n            }\n\n    transforms : ComponentSpec Rect World\n    transforms =\n        { getter: .transforms,\n        , setter: (\\world -> \\comps -> {world | transforms = comps})\n        }\n\n\n    balls : ComponentSpec Ball World\n    balls =\n        { getter: .balls,\n        , setter: (\\world -> \\comps -> {world | balls = comps})\n        }\n\n    moveBalls : Float -> World -> World\n    moveBalls delta =\n        -- ...\n          stepEntities2 balls transforms (\\ent2 -> { ent2 | b = addVelocity ent2.a ent2.b delta })\n\nstepEntities2 goes through all the balls (any entity with a ball component and transform component)\nin this example and updates their location based on their velocity and the time elapsed.\n\nBecause moveBalls' type signature has no concept of the components involved, these systems can easily be\ncomposed to operate in sequence to create an ECS Engine.\n\n# Types\n@docs EntityID, EntitySet, ComponentSpec, ComponentSet, EntityDeletor, Entity, Entity2, Entity3\n\n# Updates and Maps\n@docs map, stepEntities, stepEntities2\n\n# Initialization\n@docs initComponents, initIdSource\n\n# Deletion\n@docs deleteEntity, (&->)\n\n# Retrieval\n@docs entities, entities2, getComponent, getEntityByUid, getEntity2ByUid, getEntity3ByUid, getUidFromId, getIdFromUid\n\n# Updates\n@docs setEntity, setEntity2\n\n# Creation\n@docs spawnEmpty, spawnEntity, spawnEntity2, spawnEntities, spawnEntities2\n",
     "aliases": [
       {
         "name": "ComponentSet",
@@ -225,6 +225,31 @@
         "name": "getComponent",
         "comment": " Simple retrieval from a component set.\n",
         "type": "Slime.ComponentSet a -> Slime.EntityID -> Maybe.Maybe a"
+      },
+      {
+        "name": "getEntity2ByUid",
+        "comment": " Returns an entity from a permanent UID.\n",
+        "type": "Slime.ComponentSpec a (Slime.EntitySet world) -> Slime.ComponentSpec b (Slime.EntitySet world) -> Slime.EntitySet world -> Slime.EntityID -> Maybe.Maybe (Slime.Entity2 (Maybe.Maybe a) (Maybe.Maybe b))"
+      },
+      {
+        "name": "getEntity3ByUid",
+        "comment": " Returns an entity from a permanent UID.\n",
+        "type": "Slime.ComponentSpec a (Slime.EntitySet world) -> Slime.ComponentSpec b (Slime.EntitySet world) -> Slime.ComponentSpec c (Slime.EntitySet world) -> Slime.EntitySet world -> Slime.EntityID -> Maybe.Maybe (Slime.Entity3 (Maybe.Maybe a) (Maybe.Maybe b) (Maybe.Maybe c))"
+      },
+      {
+        "name": "getEntityByUid",
+        "comment": " Returns an entity from a permanent UID.\n",
+        "type": "Slime.ComponentSpec a (Slime.EntitySet world) -> Slime.EntitySet world -> Slime.EntityID -> Maybe.Maybe (Slime.Entity (Maybe.Maybe a))"
+      },
+      {
+        "name": "getIdFromUid",
+        "comment": " Retrieves a permanent UID from an entity ID.\n",
+        "type": "Slime.EntitySet world -> Slime.EntityID -> Maybe.Maybe Slime.EntityID"
+      },
+      {
+        "name": "getUidFromId",
+        "comment": " Retrieves an entity ID based on a permanent UID.\n",
+        "type": "Slime.EntitySet world -> Slime.EntityID -> Maybe.Maybe Slime.EntityID"
       },
       {
         "name": "initComponents",

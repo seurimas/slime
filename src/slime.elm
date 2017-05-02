@@ -1,4 +1,4 @@
-module Slime exposing (EntityID, EntitySet, ComponentSpec, ComponentSet, EntityDeletor, initComponents, initIdSource, deleteEntity, (&->), Entity, Entity2, Entity3, spawnEmpty, spawnEntity, spawnEntity2, setEntity, setEntity2, entities, entities2, getComponent, map, stepEntities, stepEntities2, spawnEntities, spawnEntities2)
+module Slime exposing (EntityID, EntitySet, ComponentSpec, ComponentSet, EntityDeletor, initComponents, initIdSource, getUidFromId, getIdFromUid, getEntityByUid, getEntity2ByUid, getEntity3ByUid, deleteEntity, (&->), Entity, Entity2, Entity3, spawnEmpty, spawnEntity, spawnEntity2, setEntity, setEntity2, entities, entities2, getComponent, map, stepEntities, stepEntities2, spawnEntities, spawnEntities2)
 
 {-| Experimental
 
@@ -48,7 +48,7 @@ composed to operate in sequence to create an ECS Engine.
 @docs deleteEntity, (&->)
 
 # Retrieval
-@docs entities, entities2, getComponent
+@docs entities, entities2, getComponent, getEntityByUid, getEntity2ByUid, getEntity3ByUid, getUidFromId, getIdFromUid
 
 # Updates
 @docs setEntity, setEntity2
@@ -247,6 +247,62 @@ claimId ({ ids, uids, uidToId, idToUid } as idSource) =
 
             Nothing ->
                 ( idSource, 0, 0 )
+
+
+{-| Retrieves an entity ID based on a permanent UID.
+-}
+getUidFromId : EntitySet world -> EntityID -> Maybe EntityID
+getUidFromId world id =
+    Dict.get id world.idSource.idToUid
+
+
+{-| Retrieves a permanent UID from an entity ID.
+-}
+getIdFromUid : EntitySet world -> EntityID -> Maybe EntityID
+getIdFromUid world uid =
+    Dict.get uid world.idSource.uidToId
+
+
+{-| Returns an entity from a permanent UID.
+-}
+getEntityByUid : ComponentSpec a (EntitySet world) -> EntitySet world -> EntityID -> Maybe (Entity (Maybe a))
+getEntityByUid { getter } world uid =
+    getUidFromId world uid
+        |> Maybe.map
+            (\id ->
+                { id = id
+                , a = getComponent (getter world) id
+                }
+            )
+
+
+{-| Returns an entity from a permanent UID.
+-}
+getEntity2ByUid : ComponentSpec a (EntitySet world) -> ComponentSpec b (EntitySet world) -> EntitySet world -> EntityID -> Maybe (Entity2 (Maybe a) (Maybe b))
+getEntity2ByUid specA specB world uid =
+    getUidFromId world uid
+        |> Maybe.map
+            (\id ->
+                { id = id
+                , a = getComponent (specA.getter world) id
+                , b = getComponent (specB.getter world) id
+                }
+            )
+
+
+{-| Returns an entity from a permanent UID.
+-}
+getEntity3ByUid : ComponentSpec a (EntitySet world) -> ComponentSpec b (EntitySet world) -> ComponentSpec c (EntitySet world) -> EntitySet world -> EntityID -> Maybe (Entity3 (Maybe a) (Maybe b) (Maybe c))
+getEntity3ByUid specA specB specC world uid =
+    getUidFromId world uid
+        |> Maybe.map
+            (\id ->
+                { id = id
+                , a = getComponent (specA.getter world) id
+                , b = getComponent (specB.getter world) id
+                , c = getComponent (specC.getter world) id
+                }
+            )
 
 
 {-| Use as the start of a deletion block:
