@@ -1,7 +1,7 @@
 [
   {
     "name": "Slime.Engine",
-    "comment": " Engine provides a simple way to manage a growing game. To do so, it needs to be provided with a few values:\n    -- An entity deletor. This is composed via Slime.deleteEntity and Slime.(&->).\n        deletor = deleteEntity transformSpec\n            &-> massSpec\n            &-> anotherSpec\n    -- A list of Systems. These are explained further later, but they basically conform to the usual ECS model.\n    -- A list of Listeners. These allow the world to be updated based on TEA messages.\n\n\n# The Engine\n@docs Engine, initEngine\n\n# Systems\n@docs System, applySystems\n\n# Listeners\n@docs Listener, applyListeners\n\n",
+    "comment": " Engine provides a simple way to manage a growing game. To do so, it needs to be provided with a few values:\n\n    -- An entity deletor. This is composed via Slime.deleteEntity and Slime.(&->). (Entity creation is handled more lazily and therefor does not require a matching value)\n    -- A list of Systems. These are explained further later, but they basically conform to the usual ECS model.\n    -- A list of Listeners. These allow the world to be updated based on TEA messages.\n\n\n# The Engine\n@docs Engine, initEngine\n\n# Systems\n@docs System, applySystems\n\n# Listeners\n@docs Listener, applyListeners\n\n",
     "aliases": [
       {
         "name": "Engine",
@@ -128,7 +128,7 @@
   },
   {
     "name": "Slime",
-    "comment": " Experimental - KNOWN ISSUES: Memory leak because old EntityIDs are not recycled.\n\nThis library provides an easy way to construct entity-component-system style\ncodeflow in Elm. It achieves this mostly by leveraging currying and getter/setters. For example:\n\n    type alias World =\n        EntitySet\n            { transforms : ComponentSet Rect\n            , balls : ComponentSet Ball\n            }\n\n    transforms : ComponentSpec Rect World\n    transforms =\n        { getter: .transforms,\n        , setter: (\\world -> \\comps -> {world | transforms = comps})\n        }\n\n\n    balls : ComponentSpec Ball World\n    balls =\n        { getter: .balls,\n        , setter: (\\world -> \\comps -> {world | balls = comps})\n        }\n\n    moveBalls : Float -> World -> World\n    moveBalls delta =\n        -- ...\n          stepEntities2 balls transforms (\\ent2 -> { ent2 | b = addVelocity ent2.a ent2.b delta })\n\nstepEntities2 goes through all the balls (any entity with a ball component and transform component)\nin this example and updates their location based on their velocity and the time elapsed.\n\nBecause moveBalls' type signature has no concept of the components involved, these systems can easily be\ncomposed to operate in sequence to create an ECS Engine.\n\n# Types\n@docs EntityID, EntitySet, ComponentSpec, ComponentSet, EntityDeletor, Entity, Entity2, Entity3\n\n# Updates and Maps\n@docs map, stepEntities, stepEntities2\n\n# Initialization\n@docs initComponents, initIdSource\n\n# Deletion\n@docs deleteEntity, (&->)\n\n# Retrieval\n@docs entities, entities2, getComponent\n\n# Updates\n@docs setEntity, setEntity2\n\n# Creation\n@docs spawnEmpty, spawnEntity, spawnEntity2, spawnEntities, spawnEntities2\n",
+    "comment": " Experimental\n\nThis library provides an easy way to construct entity-component-system style\ncodeflow in Elm. It achieves this mostly by leveraging currying and getter/setters. For example:\n\n    type alias World =\n        EntitySet\n            { transforms : ComponentSet Rect\n            , balls : ComponentSet Ball\n            }\n\n    transforms : ComponentSpec Rect World\n    transforms =\n        { getter: .transforms,\n        , setter: (\\world -> \\comps -> {world | transforms = comps})\n        }\n\n\n    balls : ComponentSpec Ball World\n    balls =\n        { getter: .balls,\n        , setter: (\\world -> \\comps -> {world | balls = comps})\n        }\n\n    moveBalls : Float -> World -> World\n    moveBalls delta =\n        -- ...\n          stepEntities2 balls transforms (\\ent2 -> { ent2 | b = addVelocity ent2.a ent2.b delta })\n\nstepEntities2 goes through all the balls (any entity with a ball component and transform component)\nin this example and updates their location based on their velocity and the time elapsed.\n\nBecause moveBalls' type signature has no concept of the components involved, these systems can easily be\ncomposed to operate in sequence to create an ECS Engine.\n\n# Types\n@docs EntityID, EntitySet, ComponentSpec, ComponentSet, EntityDeletor, Entity, Entity2, Entity3\n\n# Updates and Maps\n@docs map, stepEntities, stepEntities2\n\n# Initialization\n@docs initComponents, initIdSource\n\n# Deletion\n@docs deleteEntity, (&->)\n\n# Retrieval\n@docs entities, entities2, getComponent\n\n# Updates\n@docs setEntity, setEntity2\n\n# Creation\n@docs spawnEmpty, spawnEntity, spawnEntity2, spawnEntities, spawnEntities2\n",
     "aliases": [
       {
         "name": "ComponentSet",
@@ -194,7 +194,7 @@
         "args": [
           "world"
         ],
-        "type": "{ world | idSource : Lazy.List.LazyList Slime.EntityID }"
+        "type": "{ world | idSource : Slime.IDSource }"
       }
     ],
     "types": [],
@@ -208,22 +208,22 @@
       },
       {
         "name": "deleteEntity",
-        "comment": " Use as the start of a deletion block:\n    deletor = deleteEntity transformSpec\n        &-> massSpec\n        &-> anotherSpec\nThe resulting deletor takes an EntityID and a world and clears the world of that Entity.\n",
+        "comment": " Use as the start of a deletion block:\n\n    deletor = deleteEntity transformSpec\n        &-> massSpec\n        &-> anotherSpec\n\nThe resulting deletor takes an EntityID and a world and clears the world of that Entity.\n",
         "type": "Slime.ComponentSpec a (Slime.EntitySet world) -> Slime.EntityDeletor (Slime.EntitySet world)"
       },
       {
         "name": "entities",
-        "comment": " ",
+        "comment": " Simple entity retrieval.\n",
         "type": "Slime.ComponentSpec a world -> world -> List (Slime.Entity a)"
       },
       {
         "name": "entities2",
-        "comment": " ",
+        "comment": " Simple entity retrieval. An entity is only included if both components provided exist for that entity.\n",
         "type": "Slime.ComponentSpec a world -> Slime.ComponentSpec b world -> world -> List (Slime.Entity2 a b)"
       },
       {
         "name": "getComponent",
-        "comment": " ",
+        "comment": " Simple retrieval from a component set.\n",
         "type": "Slime.ComponentSet a -> Slime.EntityID -> Maybe.Maybe a"
       },
       {
@@ -234,47 +234,47 @@
       {
         "name": "initIdSource",
         "comment": " Use to create an ID source for an EntitySet.\n",
-        "type": "Lazy.List.LazyList Slime.EntityID"
+        "type": "Slime.IDSource"
       },
       {
         "name": "map",
-        "comment": " ",
+        "comment": " Creates a list of something for each existing component of a given type.\n",
         "type": "Slime.ComponentSpec a world -> (a -> b) -> world -> List b"
       },
       {
         "name": "setEntity",
-        "comment": " Applies a\n",
+        "comment": " Sets the world with an entity's component updated.\n",
         "type": "Slime.ComponentSpec a world -> world -> Slime.Entity a -> world"
       },
       {
         "name": "setEntity2",
-        "comment": " ",
+        "comment": " Sets the world with an entity's component updated.\n",
         "type": "Slime.ComponentSpec a world -> Slime.ComponentSpec b world -> world -> Slime.Entity2 a b -> world"
       },
       {
         "name": "spawnEmpty",
         "comment": " Spawns an empty Entity. Useful if you just need an Entity ID and want to\nset the components manually.\n",
-        "type": "Slime.EntitySet world -> ( Slime.EntitySet world, Slime.EntityID )"
+        "type": "Slime.EntitySet world -> ( Slime.EntitySet world, Slime.EntityID, Slime.EntityID )"
       },
       {
         "name": "spawnEntities",
         "comment": " A convenience method to spawn multiple entities, provided as a list.\n",
-        "type": "Slime.ComponentSpec a (Slime.EntitySet world) -> Slime.EntitySet world -> List { a : a } -> ( Slime.EntitySet world, List Slime.EntityID )"
+        "type": "Slime.ComponentSpec a (Slime.EntitySet world) -> Slime.EntitySet world -> List { a : a } -> ( Slime.EntitySet world , List Slime.EntityID , List Slime.EntityID )"
       },
       {
         "name": "spawnEntities2",
         "comment": " A convenience method to spawn multiple entities, provided as a list.\n",
-        "type": "Slime.ComponentSpec a (Slime.EntitySet world) -> Slime.ComponentSpec b (Slime.EntitySet world) -> Slime.EntitySet world -> List { a : a, b : b } -> ( Slime.EntitySet world, List Slime.EntityID )"
+        "type": "Slime.ComponentSpec a (Slime.EntitySet world) -> Slime.ComponentSpec b (Slime.EntitySet world) -> Slime.EntitySet world -> List { a : a, b : b } -> ( Slime.EntitySet world , List Slime.EntityID , List Slime.EntityID )"
       },
       {
         "name": "spawnEntity",
         "comment": " Spawns an Entity with one component.\n",
-        "type": "Slime.ComponentSpec a (Slime.EntitySet world) -> Slime.EntitySet world -> { a : a } -> ( Slime.EntitySet world, Slime.EntityID )"
+        "type": "Slime.ComponentSpec a (Slime.EntitySet world) -> Slime.EntitySet world -> { a : a } -> ( Slime.EntitySet world, Slime.EntityID, Slime.EntityID )"
       },
       {
         "name": "spawnEntity2",
         "comment": " Spawns an Entity with two components.\n",
-        "type": "Slime.ComponentSpec a (Slime.EntitySet world) -> Slime.ComponentSpec b (Slime.EntitySet world) -> Slime.EntitySet world -> { a : a, b : b } -> ( Slime.EntitySet world, Slime.EntityID )"
+        "type": "Slime.ComponentSpec a (Slime.EntitySet world) -> Slime.ComponentSpec b (Slime.EntitySet world) -> Slime.EntitySet world -> { a : a, b : b } -> ( Slime.EntitySet world, Slime.EntityID, Slime.EntityID )"
       },
       {
         "name": "stepEntities",

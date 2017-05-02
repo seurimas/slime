@@ -1,10 +1,8 @@
 module Slime.Engine exposing (Engine, initEngine, System(..), applySystems, Listener(..), applyListeners)
 
 {-| Engine provides a simple way to manage a growing game. To do so, it needs to be provided with a few values:
-    -- An entity deletor. This is composed via Slime.deleteEntity and Slime.(&->).
-        deletor = deleteEntity transformSpec
-            &-> massSpec
-            &-> anotherSpec
+
+    -- An entity deletor. This is composed via Slime.deleteEntity and Slime.(&->). (Entity creation is handled more lazily and therefor does not require a matching value)
     -- A list of Systems. These are explained further later, but they basically conform to the usual ECS model.
     -- A list of Listeners. These allow the world to be updated based on TEA messages.
 

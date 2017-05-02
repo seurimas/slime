@@ -96,7 +96,7 @@ balls =
     }
 
 
-spawnBall : ( Float, Float, Float, Float ) -> World -> ( World, Int )
+spawnBall : ( Float, Float, Float, Float ) -> World -> World
 spawnBall ( x, y, vx, vy ) world =
     let
         rect =
@@ -111,8 +111,11 @@ spawnBall ( x, y, vx, vy ) world =
             { vx = vx
             , vy = vy
             }
+
+        ( newEntity, id, uid ) =
+            spawnEntity2 transforms balls world { a = rect, b = ball }
     in
-        spawnEntity2 transforms balls world { a = rect, b = ball }
+        newEntity
 
 
 paddles : ComponentSpec Paddle World
@@ -132,7 +135,7 @@ scores =
 spawnPaddles world =
     let
         paddleSpawner =
-            spawnEntity2 transforms paddles
+            spawnEntities2 transforms paddles
 
         leftRect =
             { x = 10
@@ -161,11 +164,14 @@ spawnPaddles world =
             , inputScheme = { up = toCode 'I', down = toCode 'K' }
             , speed = 200
             }
+
+        ( updatedWorld, ids, uids ) =
+            paddleSpawner world
+                [ { a = leftRect, b = leftInput }
+                , { a = rightRect, b = rightInput }
+                ]
     in
-        paddleSpawner world { a = leftRect, b = leftInput }
-            |> Tuple.first
-            >> flip paddleSpawner { a = rightRect, b = rightInput }
-            |> Tuple.first
+        updatedWorld
 
 
 engine : Engine World Msg
@@ -204,23 +210,14 @@ world =
     , score = ( 0, 0 )
     }
         |> spawnBall ( 247.5, 247.5, 100, 80 )
-        |> Tuple.first
         {- |> spawnBall ( 247.5, 247.5, 80, 100 )
-           |> Tuple.first
            |> spawnBall ( 247.5, 247.5, -100, 80 )
-           |> Tuple.first
            |> spawnBall ( 247.5, 247.5, -80, 100 )
-           |> Tuple.first
            |> spawnBall ( 247.5, 247.5, 100, -80 )
-           |> Tuple.first
            |> spawnBall ( 247.5, 247.5, 80, -100 )
-           |> Tuple.first
            |> spawnBall ( 247.5, 247.5, -100, -80 )
-           |> Tuple.first
            |> spawnBall ( 247.5, 247.5, -80, -100 )
-           |> Tuple.first
            |> spawnBall ( 40, 230, -80, 100 )
-           |> Tuple.first
         -}
         |>
             spawnPaddles
@@ -325,7 +322,7 @@ scoreBalls world =
         newBalls =
             List.map newBall scoredBalls
 
-        ( updatedWorld1, _ ) =
+        ( updatedWorld1, _, _ ) =
             spawnEntities scores world newScores
     in
         ( { updatedWorld1 | score = updatedScore }, Cmd.batch newBalls, List.map .id scoredBalls )
@@ -362,7 +359,6 @@ spawnNewBalls msg world =
                     directionToVelocity dir
             in
                 spawnBall ( 247.5, 247.5, vx, vy ) world
-                    |> Tuple.first
 
         _ ->
             world
