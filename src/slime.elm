@@ -1,4 +1,4 @@
-module Slime exposing (EntityID, EntitySet, ComponentSpec, ComponentSet, EntityDeletor, initComponents, initIdSource, getUidFromId, getIdFromUid, getEntityByUid, getEntity2ByUid, getEntity3ByUid, deleteEntity, (&->), Entity, Entity2, Entity3, spawnEmpty, spawnEntity, spawnEntity2, setEntity, setEntity2, entities, entities2, getComponent, map, stepEntities, stepEntities2, spawnEntities, spawnEntities2)
+module Slime exposing (EntityID, EntitySet, ComponentSpec, ComponentSet, EntityDeletor, initComponents, initIdSource, getUidFromId, getIdFromUid, getEntityByUid, getEntity2ByUid, getEntity3ByUid, deleteEntity, (&->), Entity, Entity2, Entity3, spawnEmpty, spawnEntity, spawnEntity2, setEntity, setEntity2, setEntity3, entities, entities2, getComponent, map, stepEntities, stepEntities2, spawnEntities, spawnEntities2, forEntityById, forEntityByUid, (&=>))
 
 {-| Experimental
 
@@ -51,7 +51,7 @@ composed to operate in sequence to create an ECS Engine.
 @docs entities, entities2, getComponent, getEntityByUid, getEntity2ByUid, getEntity3ByUid, getUidFromId, getIdFromUid
 
 # Updates
-@docs setEntity, setEntity2
+@docs setEntity, setEntity2, setEntity3, forEntityById, forEntityByUid, (&=>), (&~>)
 
 # Creation
 @docs spawnEmpty, spawnEntity, spawnEntity2, spawnEntities, spawnEntities2
@@ -616,3 +616,77 @@ entities3 specA specB specC record =
     zip3 ((.contents << specA.getter) record) ((.contents << specB.getter) record) ((.contents << specC.getter) record)
         |> indexedMap tag3
         |> completeEntities
+
+
+{-| Begin a chain of sets for a particular entity id.
+-}
+forEntityById : EntityID -> world -> ( Maybe EntityID, world )
+forEntityById id world =
+    ( Just id, world )
+
+
+{-| Begin a chain of sets for a particular entity id.
+-}
+forEntityByUid : EntityID -> EntitySet world -> ( Maybe EntityID, EntitySet world )
+forEntityByUid uid world =
+    getIdFromUid world uid
+        |> (flip (,)) world
+
+
+{-| Sets a particular entity's component. Used with forEntityById and forEntityByUid.
+Example:
+    (_, updatedWorld) =
+        forEntityById id world
+            &=> (locations, (0, 0))
+            &=> (sizes, (2, 6))
+
+-}
+(&=>) : ( Maybe EntityID, world ) -> ( ComponentSpec a world, a ) -> ( Maybe EntityID, world )
+(&=>) ( mid, world ) ( { getter, setter }, component ) =
+    case mid of
+        Just id ->
+            let
+                updatedComponents =
+                    getter world
+                        |> setComponent id component
+
+                updatedWorld =
+                    setter world updatedComponents
+            in
+                ( mid, updatedWorld )
+
+        Nothing ->
+            ( mid, world )
+
+
+{-| Updates a particular entity's component. Used with forEntityById and forEntityByUid.
+    (_, updatedWorld) =
+        forEntityById id world
+            &=> (locations, moveMe)
+            &=> (sizes, shrinkMe)
+
+-}
+(&~>) : ( Maybe EntityID, EntitySet world ) -> ( ComponentSpec a (EntitySet world), Maybe a -> Maybe a ) -> ( Maybe EntityID, EntitySet world )
+(&~>) ( mid, world ) ( { getter, setter } as spec, update ) =
+    case mid of
+        Just id ->
+            let
+                component =
+                    getComponent (getter world) id
+
+                updatedComponent =
+                    update component
+
+                updatedWorld =
+                    case updatedComponent of
+                        Just updated ->
+                            setComponent id updated (getter world)
+                                |> setter world
+
+                        Nothing ->
+                            deleteComponent spec world id
+            in
+                ( mid, updatedWorld )
+
+        Nothing ->
+            ( mid, world )
