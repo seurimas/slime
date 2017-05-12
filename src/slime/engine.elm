@@ -1,4 +1,4 @@
-module Slime.Engine exposing (Engine, initEngine, System(..), applySystems, Listener(..), applyListeners)
+module Slime.Engine exposing (Engine, initEngine, TickOrMsg(..), engineSubs, System(..), applySystems, Listener(..), applyListeners, engineUpdate)
 
 {-| Engine provides a simple way to manage a growing game. To do so, it needs to be provided with a few values:
 
@@ -19,6 +19,7 @@ module Slime.Engine exposing (Engine, initEngine, System(..), applySystems, List
 -}
 
 import Slime exposing (EntityDeletor, EntityID)
+import AnimationFrame
 
 
 {-| A System constructed in this way will be used by Engine to update the world
@@ -188,3 +189,53 @@ applyListeners engine world msg =
                 ( newWorld, Cmd.batch [ cmd, addedCommands ] )
     in
         List.foldl merge (world ! []) engine.listeners
+
+
+{-| Wraps messages and ticks.
+-}
+type TickOrMsg msg
+    = Tick Float
+    | Msg msg
+
+
+{-| Takes the subscriptions for your app and wraps them for the engine. Time messages are provided by the engine.
+
+For use with engineUpdate.
+
+Example:
+    Sub.batch [ ... ]
+        |> engineSubs
+-}
+engineSubs : Sub msg -> Sub (TickOrMsg msg)
+engineSubs subs =
+    Sub.batch
+        [ Sub.map Msg subs
+        , AnimationFrame.diffs Tick
+        ]
+
+
+{-| Wraps up the engine in such a way that you can use it as your entire update function, if desired. Requires use of engineSubs.
+-}
+engineUpdate : Engine world msg -> { getter : model -> world, setter : model -> world -> model } -> TickOrMsg msg -> model -> ( model, Cmd (TickOrMsg msg) )
+engineUpdate engine { getter, setter } msg model =
+    case msg of
+        Tick delta ->
+            let
+                deltaMs =
+                    delta / 1000
+
+                ( updatedWorld, commands ) =
+                    applySystems engine (getter model) deltaMs
+            in
+                ( (setter model updatedWorld)
+                , Cmd.map Msg commands
+                )
+
+        Msg msg ->
+            let
+                ( updatedWorld, commands ) =
+                    applyListeners engine (getter model) msg
+            in
+                ( (setter model updatedWorld)
+                , Cmd.map Msg commands
+                )
