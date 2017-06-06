@@ -1,4 +1,4 @@
-module Slime exposing (EntityID, EntitySet, ComponentSpec, ComponentSet, EntityDeletor, initComponents, initIdSource, getUidFromId, getIdFromUid, getEntityByUid, getEntity2ByUid, getEntity3ByUid, deleteEntity, (&->), Entity, Entity2, Entity3, spawnEmpty, spawnEntity, spawnEntity2, setEntity, setEntity2, setEntity3, entities, entities2, getComponent, map, stepEntities, stepEntities2, spawnEntities, spawnEntities2, forEntityById, forEntityByUid, (&=>))
+module Slime exposing (EntityID, EntitySet, ComponentSpec, ComponentSet, EntityDeletor, initComponents, initIdSource, getUidFromId, getIdFromUid, getEntityByUid, getEntity2ByUid, getEntity3ByUid, deleteEntity, (&->), Entity, Entity2, Entity3, spawnEmpty, spawnEntity, spawnEntity2, setEntity, setEntity2, setEntity3, entities, entities2, getComponentById, getComponent, map, stepEntities, stepEntities2, stepEntities3, spawnEntities, spawnEntities2, forEntityById, forEntityByUid, (&=>))
 
 {-| Experimental
 
@@ -39,7 +39,7 @@ composed to operate in sequence to create an ECS Engine.
 @docs EntityID, EntitySet, ComponentSpec, ComponentSet, EntityDeletor, Entity, Entity2, Entity3
 
 # Updates and Maps
-@docs map, stepEntities, stepEntities2
+@docs map, stepEntities, stepEntities2, stepEntities3
 
 # Initialization
 @docs initComponents, initIdSource
@@ -48,7 +48,7 @@ composed to operate in sequence to create an ECS Engine.
 @docs deleteEntity, (&->)
 
 # Retrieval
-@docs entities, entities2, getComponent, getEntityByUid, getEntity2ByUid, getEntity3ByUid, getUidFromId, getIdFromUid
+@docs entities, entities2, getComponentById, getComponent, getEntityByUid, getEntity2ByUid, getEntity3ByUid, getUidFromId, getIdFromUid
 
 # Updates
 @docs setEntity, setEntity2, setEntity3, forEntityById, forEntityByUid, (&=>), (&~>)
@@ -508,7 +508,9 @@ stepEntities3 specA specB specC update record =
 {-| Filters a step entity block. Example:
 
     stepGravity =
-        stepEntities2 transform velocity (\ent2 world -> getComponentById antigrav ent2.id world == Nothing) applyGravity
+        stepEntities2 transform velocity
+            |> filtered (\ent2 world -> getComponentById antigrav ent2.id world == Nothing)
+            |> applyGravity
 
 -}
 filtered : (Tagged x -> world -> Bool) -> ((Tagged x -> Tagged x) -> world -> world) -> (Tagged x -> Tagged x) -> world -> world
