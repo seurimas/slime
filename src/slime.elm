@@ -113,27 +113,23 @@ type alias EntitySet world =
 
 
 {-| -}
+type alias Tagged r =
+    { r | id : EntityID }
+
+
+{-| -}
 type alias Entity a =
-    { id : EntityID
-    , a : a
-    }
+    Tagged { a : a }
 
 
 {-| -}
 type alias Entity2 a b =
-    { id : EntityID
-    , a : a
-    , b : b
-    }
+    Tagged { a : a, b : b }
 
 
 {-| -}
 type alias Entity3 a b c =
-    { id : EntityID
-    , a : a
-    , b : b
-    , c : c
-    }
+    Tagged { a : a, b : b, c : c }
 
 
 {-| Include as a field in your world and initialize with `.initComponents`
@@ -509,6 +505,26 @@ stepEntities3 specA specB specC update record =
         (List.foldr (flip setter) record updatedEntities)
 
 
+{-| Filters a step entity block. Example:
+
+    stepGravity =
+        stepEntities2 transform velocity (\ent2 world -> getComponentById antigrav ent2.id world == Nothing) applyGravity
+
+-}
+filtered : (Tagged x -> world -> Bool) -> ((Tagged x -> Tagged x) -> world -> world) -> (Tagged x -> Tagged x) -> world -> world
+filtered check stepEnts updateFunc world =
+    let
+        filteredUpdate entity =
+            case check entity world of
+                True ->
+                    updateFunc entity
+
+                False ->
+                    entity
+    in
+        stepEnts filteredUpdate world
+
+
 {-| Sets the world with an entity's component updated.
 -}
 setEntity : ComponentSpec a world -> world -> Entity a -> world
@@ -564,6 +580,13 @@ setEntity3 specA specB specC record entity =
 {-
    Retrieval
 -}
+
+
+{-| Try to prefer getEntity(#)ByUid where appropriate. This is useful for filters, however.
+-}
+getComponentById : ComponentSpec a world -> EntityID -> world -> Maybe a
+getComponentById { getter } id world =
+    getComponent (getter world) id
 
 
 {-| Simple retrieval from a component set.
