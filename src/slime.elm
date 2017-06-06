@@ -1,4 +1,46 @@
-module Slime exposing (EntityID, EntitySet, ComponentSpec, ComponentSet, EntityDeletor, initComponents, initIdSource, getUidFromId, getIdFromUid, getEntityByUid, getEntity2ByUid, getEntity3ByUid, deleteEntity, (&->), Entity, Entity2, Entity3, spawnEmpty, spawnEntity, spawnEntity2, setEntity, setEntity2, setEntity3, entities, entities2, getComponentById, getComponent, map, stepEntities, stepEntities2, stepEntities3, spawnEntities, spawnEntities2, forEntityById, forEntityByUid, (&=>))
+module Slime
+    exposing
+        ( EntityID
+        , EntitySet
+        , ComponentSpec
+        , ComponentSet
+        , EntityDeletor
+        , initComponents
+        , initIdSource
+        , getUidFromId
+        , getIdFromUid
+        , getEntityByUid
+        , getEntity2ByUid
+        , getEntity3ByUid
+        , deleteEntity
+        , (&->)
+        , Entity
+        , Entity2
+        , Entity3
+        , spawnEmpty
+        , spawnEntity
+        , spawnEntity2
+        , setEntity
+        , setEntity2
+        , setEntity3
+        , entities
+        , entities2
+        , entities3
+        , stepEntities
+        , stepEntities2
+        , stepEntities3
+        , getComponentById
+        , getComponent
+        , hasComponent
+        , entityExistsByUid
+        , map
+        , spawnEntities
+        , spawnEntities2
+        , forEntityById
+        , forEntityByUid
+        , forNewEntity
+        , (&=>)
+        )
 
 {-| Experimental
 
@@ -48,13 +90,16 @@ composed to operate in sequence to create an ECS Engine.
 @docs deleteEntity, (&->)
 
 # Retrieval
-@docs entities, entities2, getComponentById, getComponent, getEntityByUid, getEntity2ByUid, getEntity3ByUid, getUidFromId, getIdFromUid
+@docs entities, entities2, entities3, getComponentById, getComponent, getEntityByUid, getEntity2ByUid, getEntity3ByUid
+
+# Entity management
+@docs entityExistsByUid, getUidFromId, getIdFromUid
 
 # Updates
 @docs setEntity, setEntity2, setEntity3, forEntityById, forEntityByUid, (&=>), (&~>)
 
 # Creation
-@docs spawnEmpty, spawnEntity, spawnEntity2, spawnEntities, spawnEntities2
+@docs spawnEmpty, spawnEntity, spawnEntity2, spawnEntities, spawnEntities2, forNewEntity
 -}
 
 import Array exposing (Array, length, append, push, get, set, repeat, indexedMap, toList)
@@ -243,6 +288,13 @@ claimId ({ ids, uids, uidToId, idToUid } as idSource) =
 
             Nothing ->
                 ( idSource, 0, 0 )
+
+
+{-|
+-}
+entityExistsByUid : EntitySet world -> EntityID -> Bool
+entityExistsByUid world id =
+    getIdFromUid world id /= Nothing
 
 
 {-| Retrieves an entity ID based on a permanent UID.
@@ -527,6 +579,13 @@ filtered check stepEnts updateFunc world =
         stepEnts filteredUpdate world
 
 
+{-| Filter or helper function to check if a component exists for a given entity
+-}
+hasComponent : ComponentSpec a world -> Tagged x -> world -> Bool
+hasComponent { getter } ent world =
+    getComponent (getter world) ent.id /= Nothing
+
+
 {-| Sets the world with an entity's component updated.
 -}
 setEntity : ComponentSpec a world -> world -> Entity a -> world
@@ -656,6 +715,17 @@ forEntityByUid : EntityID -> EntitySet world -> ( Maybe EntityID, EntitySet worl
 forEntityByUid uid world =
     getIdFromUid world uid
         |> (flip (,)) world
+
+
+{-| Begins a chain of sets for a new entity. Useful for complex entity spawning.
+-}
+forNewEntity : EntitySet world -> ( Maybe EntityID, EntitySet world )
+forNewEntity world =
+    let
+        ( updatedWorld, newId, _ ) =
+            spawnEmpty world
+    in
+        ( Just newId, updatedWorld )
 
 
 {-| Sets a particular entity's component. Used with forEntityById and forEntityByUid.
