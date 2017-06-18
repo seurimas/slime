@@ -239,21 +239,23 @@ listenerMap toSub fromSub (Listener listener) =
 
 With the engine, update functions can be massively simplified, in a true ECS fashion.
 -}
-type alias Engine world msg =
-    { deleteEntity : EntityDeletor world
-    , systems : List (System world msg)
-    , listeners : List (Listener world msg)
-    }
+type Engine world msg
+    = Engine
+        { deleteEntity : EntityDeletor world
+        , systems : List (System world msg)
+        , listeners : List (Listener world msg)
+        }
 
 
 {-| Initializes an Engine with a deletor, a list of systems, and a list of listeners.
 -}
 initEngine : EntityDeletor world -> List (System world msg) -> List (Listener world msg) -> Engine world msg
 initEngine deleteEntity systems listeners =
-    { deleteEntity = deleteEntity
-    , systems = systems
-    , listeners = listeners
-    }
+    Engine
+        { deleteEntity = deleteEntity
+        , systems = systems
+        , listeners = listeners
+        }
 
 
 sweepDeletes : EntityDeletor world -> world -> List EntityID -> world
@@ -274,7 +276,7 @@ applySystem deletor (System system) world deltaTime =
 provided engine.
 -}
 applySystems : Engine world msg -> world -> Float -> ( world, Cmd msg )
-applySystems engine world deltaTime =
+applySystems (Engine engine) world deltaTime =
     let
         merge system ( world, cmd ) =
             let
@@ -299,7 +301,7 @@ listen deletor (Listener listener) world msg =
 provided engine.
 -}
 applyListeners : Engine world msg -> world -> msg -> ( world, Cmd msg )
-applyListeners engine world msg =
+applyListeners (Engine engine) world msg =
     let
         merge listener ( world, cmd ) =
             let
