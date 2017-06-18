@@ -17,7 +17,7 @@ import Game.TwoD as Game
 import Game.TwoD.Render as Render
 import Game.TwoD.Camera as Camera exposing (Camera)
 import Slime exposing (..)
-import Slime.Engine exposing (System(..), Listener(..), Engine)
+import Slime.Engine exposing (System, timedSystem, untimedSystem, systemWith, timed, untimed, deletes, cmdsAndDeletes, Listener, listener, Engine)
 
 
 type alias Rect =
@@ -184,17 +184,17 @@ engine =
                 &-> scores
 
         systems =
-            [ Time moveBalls
-            , Basic keepBalls
-            , CommandsDeletes scoreBalls
-            , Basic bounceBalls
-            , Time movePaddles
-            , TimeAndDeletes updateScores
+            [ timedSystem moveBalls
+            , untimedSystem keepBalls
+            , systemWith { timing = untimed, options = cmdsAndDeletes } scoreBalls
+            , untimedSystem bounceBalls
+            , timedSystem movePaddles
+            , systemWith { timing = timed, options = deletes } updateScores
             ]
 
         listeners =
-            [ Listen setPaddleKeys
-            , Listen spawnNewBalls
+            [ listener setPaddleKeys
+            , listener spawnNewBalls
             ]
     in
         Slime.Engine.initEngine deletor systems listeners
@@ -558,37 +558,25 @@ takeMessage =
 
 
 update msg model =
-    case msg of
-        Tick delta ->
-            let
-                deltaMs =
-                    delta / 1000
-
-                ( updatedWorld, commands ) =
-                    updateWorld model.world deltaMs
-            in
-                ( { model | world = updatedWorld }
-                , commands
-                )
-
-        _ ->
-            let
-                ( updatedWorld, commands ) =
-                    takeMessage model.world msg
-            in
-                ( { model | world = updatedWorld }
-                , commands
-                )
+    let
+        ( updatedWorld, cmds ) =
+            Slime.Engine.engineUpdate engine msg model.world
+    in
+        ( { model
+            | world = updatedWorld
+          }
+        , cmds
+        )
 
 
 {-|
    The game
 -}
-main : Program Never Model Msg
+main : Program Never Model (Slime.Engine.Message Msg)
 main =
     Html.program
         { init = model ! []
-        , subscriptions = subs
+        , subscriptions = subs >> Slime.Engine.engineSubs
         , update = update
         , view = render
         }

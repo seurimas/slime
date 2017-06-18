@@ -1,4 +1,28 @@
-module Slime.Engine exposing (Engine, initEngine, TickOrMsg(..), engineSubs, System(..), applySystems, Listener(..), applyListeners, engineUpdate)
+module Slime.Engine
+    exposing
+        ( Engine
+        , initEngine
+        , Message(..)
+        , engineSubs
+        , timed
+        , untimed
+        , noOptions
+        , cmds
+        , deletes
+        , cmdsAndDeletes
+        , System
+        , timedSystem
+        , untimedSystem
+        , systemWith
+        , systemMap
+        , applySystems
+        , Listener
+        , listener
+        , listenerWith
+        , listenerMap
+        , applyListeners
+        , engineUpdate
+        )
 
 {-| Engine provides a simple way to manage a growing game. To do so, it needs to be provided with a few values:
 
@@ -8,18 +32,70 @@ module Slime.Engine exposing (Engine, initEngine, TickOrMsg(..), engineSubs, Sys
 
 
 # The Engine
-@docs Engine, initEngine
+@docs Engine, initEngine, engineSubs, engineUpdate, Message
+
+# System and listener options
+@docs timed, untimed, noOptions, cmds, deletes, cmdsAndDeletes
 
 # Systems
-@docs System, applySystems
+@docs System, untimedSystem, timedSystem, systemWith
 
 # Listeners
-@docs Listener, applyListeners
+@docs Listener, listener, listenerWith
+
+# Manual methods
+@docs applyListeners, applySystems
 
 -}
 
 import Slime exposing (EntityDeletor, EntityID)
 import AnimationFrame
+
+
+type alias SystemStep world msg =
+    { updatedWorld : world
+    , commands : Cmd msg
+    , deletes : List EntityID
+    }
+
+
+worldStep : world -> SystemStep world msg
+worldStep world =
+    { updatedWorld = world
+    , commands = Cmd.none
+    , deletes = []
+    }
+
+
+worldCmdsStep : ( world, Cmd msg ) -> SystemStep world msg
+worldCmdsStep ( world, commands ) =
+    { updatedWorld = world
+    , commands = commands
+    , deletes = []
+    }
+
+
+worldDeletesStep : ( world, List EntityID ) -> SystemStep world msg
+worldDeletesStep ( world, deletes ) =
+    { updatedWorld = world
+    , commands = Cmd.none
+    , deletes = deletes
+    }
+
+
+worldCmdsDeletesStep : ( world, Cmd msg, List EntityID ) -> SystemStep world msg
+worldCmdsDeletesStep ( world, commands, deletes ) =
+    { updatedWorld = world
+    , commands = commands
+    , deletes = deletes
+    }
+
+
+applySystemStep : EntityDeletor world -> SystemStep world msg -> ( world, Cmd msg )
+applySystemStep deletor { updatedWorld, commands, deletes } =
+    ( sweepDeletes deletor updatedWorld deletes
+    , commands
+    )
 
 
 {-| A System constructed in this way will be used by Engine to update the world
@@ -33,24 +109,130 @@ Each of the types has a different function signature for different options:
 There is also a Basic, which has no options.
 -}
 type System world msg
-    = TimeAndDeletes (Float -> world -> ( world, List EntityID ))
-    | Time (Float -> world -> world)
-    | Deletes (world -> ( world, List EntityID ))
-    | TimeAndCommandsDeletes (Float -> world -> ( world, Cmd msg, List EntityID ))
-    | TimeAndCommands (Float -> world -> ( world, Cmd msg ))
-    | CommandsDeletes (world -> ( world, Cmd msg, List EntityID ))
-    | Commands (world -> ( world, Cmd msg ))
-    | Basic (world -> world)
+    = System (Float -> world -> SystemStep world msg)
+
+
+{-| Use in systemWith/listenerWith to define a system or listener with no commands or deletes.
+-}
+noOptions : world -> SystemStep world msg
+noOptions =
+    worldStep
+
+
+{-| Use in systemWith/listenerWith to define a system or listener with commands.
+-}
+cmds : ( world, Cmd msg ) -> SystemStep world msg
+cmds =
+    worldCmdsStep
+
+
+{-| Use in systemWith/listenerWith to define a system or listener with deletes.
+-}
+deletes : ( world, List EntityID ) -> SystemStep world msg
+deletes =
+    worldDeletesStep
+
+
+{-| Use in systemWith/listenerWith to define a system or listener with commands and deletes.
+-}
+cmdsAndDeletes : ( world, Cmd msg, List EntityID ) -> SystemStep world msg
+cmdsAndDeletes =
+    worldCmdsDeletesStep
+
+
+{-| Use in systemWith to define a timed system.
+-}
+timed : (Float -> world -> step) -> (Float -> world -> step)
+timed =
+    identity
+
+
+{-| Use in systemWith to define an untimed system.
+-}
+untimed : (world -> step) -> (Float -> world -> step)
+untimed system dt =
+    system
+
+
+{-| Creates a system that does not accept deltas, creates no commands or deletes.
+-}
+untimedSystem : (world -> world) -> System world msg
+untimedSystem =
+    systemWith
+        { timing = untimed
+        , options = noOptions
+        }
+
+
+{-| Creates a system that accepts deltas, creates no commands or deletes.
+-}
+timedSystem : (Float -> world -> world) -> System world msg
+timedSystem =
+    systemWith
+        { timing = timed
+        , options = noOptions
+        }
+
+
+{-| Creates a system with particular timing (timed or untimed) and options (e.g.
+cmds, deletes, cmdsAndDeletes).
+-}
+systemWith : { timing : baseSystem -> (Float -> world -> stepType), options : stepType -> SystemStep world msg } -> baseSystem -> System world msg
+systemWith { timing, options } base =
+    System (\dt world -> (timing base) dt world |> options)
+
+
+{-| Maps a listener of one message type to another.
+-}
+systemMap : (originalMsg -> msg) -> System world originalMsg -> System world msg
+systemMap msgMap (System system) =
+    System
+        (\dt world ->
+            let
+                ({ commands } as systemStep) =
+                    system dt world
+            in
+                { systemStep
+                    | commands = Cmd.map msgMap commands
+                }
+        )
 
 
 {-| A Listener constructed in a similar way to Systems with a different purpose:
 accepting messages through TEA. It has the same options as System, except Time.
 -}
 type Listener world msg
-    = Listen (msg -> world -> world)
-    | ListenAndDeletes (msg -> world -> ( world, List EntityID ))
-    | ListenAndCommandsDeletes (msg -> world -> ( world, Cmd msg, List EntityID ))
-    | ListenAndCommands (msg -> world -> ( world, Cmd msg ))
+    = Listener (msg -> world -> SystemStep world msg)
+
+
+{-| Creates a listener with no options (no commands are created and no deletes).
+-}
+listener : (msg -> world -> world) -> Listener world msg
+listener listener =
+    Listener (\msg world -> worldStep (listener msg world))
+
+
+{-| Creates a listener with the given options (e.g. cmds, deletes, cmdsAndDeletes)
+-}
+listenerWith : { options : stepType -> SystemStep world msg } -> (msg -> world -> stepType) -> Listener world msg
+listenerWith { options } base =
+    Listener (\msg world -> (base msg world |> options))
+
+
+{-| Maps a listener of one message type to another.
+-}
+listenerMap : (msg -> subMsg) -> (subMsg -> msg) -> Listener world subMsg -> Listener world msg
+listenerMap toSub fromSub (Listener listener) =
+    Listener
+        (\msg world ->
+            let
+                ({ commands } as systemStep) =
+                    listener (toSub msg) world
+            in
+                { systemStep
+                    | commands = Cmd.map fromSub commands
+                }
+        )
 
 
 {-| The Engine type is used as the first argument of applySystems and applyListeners.
@@ -80,57 +262,16 @@ sweepDeletes deletes world =
 
 
 applySystem : EntityDeletor world -> System world msg -> world -> Float -> ( world, Cmd msg )
-applySystem deletor system world deltaTime =
-    case system of
-        TimeAndDeletes func ->
-            let
-                ( steppedWorld, deletions ) =
-                    func deltaTime world
-            in
-                sweepDeletes deletor steppedWorld deletions ! []
-
-        Time func ->
-            func deltaTime world ! []
-
-        Deletes func ->
-            let
-                ( steppedWorld, deletions ) =
-                    func world
-            in
-                sweepDeletes deletor steppedWorld deletions ! []
-
-        TimeAndCommandsDeletes func ->
-            let
-                ( steppedWorld, commands, deletions ) =
-                    func deltaTime world
-            in
-                ( sweepDeletes deletor steppedWorld deletions
-                , commands
-                )
-
-        TimeAndCommands func ->
-            func deltaTime world
-
-        CommandsDeletes func ->
-            let
-                ( steppedWorld, commands, deletions ) =
-                    func world
-            in
-                ( sweepDeletes deletor steppedWorld deletions
-                , commands
-                )
-
-        Commands func ->
-            func world
-
-        Basic func ->
-            func world ! []
+applySystem deletor (System system) world deltaTime =
+    let
+        systemStep =
+            system deltaTime world
+    in
+        applySystemStep deletor systemStep
 
 
-{-| A good way to use this is to curry the Engine out:
-    runWorld = applySystems engine
-And then later...
-    (updatedWorld, cmd) = runWorld deltaTime
+{-| Useful if you write your own update method. Uses systems as defined in the
+provided engine.
 -}
 applySystems : Engine world msg -> world -> Float -> ( world, Cmd msg )
 applySystems engine world deltaTime =
@@ -146,37 +287,16 @@ applySystems engine world deltaTime =
 
 
 listen : EntityDeletor world -> Listener world msg -> world -> msg -> ( world, Cmd msg )
-listen deletor listener world msg =
-    case listener of
-        Listen func ->
-            func msg world ! []
-
-        ListenAndDeletes func ->
-            let
-                ( steppedWorld, deletions ) =
-                    func msg world
-            in
-                sweepDeletes deletor steppedWorld deletions ! []
-
-        ListenAndCommandsDeletes func ->
-            let
-                ( steppedWorld, commands, deletions ) =
-                    func msg world
-            in
-                ( sweepDeletes deletor steppedWorld deletions
-                , commands
-                )
-
-        ListenAndCommands func ->
-            func msg world
+listen deletor (Listener listener) world msg =
+    let
+        systemStep =
+            listener msg world
+    in
+        applySystemStep deletor systemStep
 
 
-{-| A good way to use this is to curry the Engine out and use it in the catch-all
-of your update function:
-    runWorld = applySystems engine
-And then later...
-    _ ->
-        (updatedWorld, cmd) = runWorld msg
+{-| Useful if you write your own update method. Uses listeners as defined in the
+provided engine.
 -}
 applyListeners : Engine world msg -> world -> msg -> ( world, Cmd msg )
 applyListeners engine world msg =
@@ -193,7 +313,7 @@ applyListeners engine world msg =
 
 {-| Wraps messages and ticks.
 -}
-type TickOrMsg msg
+type Message msg
     = Tick Float
     | Msg msg
 
@@ -206,7 +326,7 @@ Example:
     Sub.batch [ ... ]
         |> engineSubs
 -}
-engineSubs : Sub msg -> Sub (TickOrMsg msg)
+engineSubs : Sub msg -> Sub (Message msg)
 engineSubs subs =
     Sub.batch
         [ Sub.map Msg subs
@@ -216,8 +336,8 @@ engineSubs subs =
 
 {-| Wraps up the engine in such a way that you can use it as your entire update function, if desired. Requires use of engineSubs.
 -}
-engineUpdate : Engine world msg -> { getter : model -> world, setter : model -> world -> model } -> TickOrMsg msg -> model -> ( model, Cmd (TickOrMsg msg) )
-engineUpdate engine { getter, setter } msg model =
+engineUpdate : Engine world msg -> Message msg -> world -> ( world, Cmd (Message msg) )
+engineUpdate engine msg world =
     case msg of
         Tick delta ->
             let
@@ -225,17 +345,17 @@ engineUpdate engine { getter, setter } msg model =
                     delta / 1000
 
                 ( updatedWorld, commands ) =
-                    applySystems engine (getter model) deltaMs
+                    applySystems engine world deltaMs
             in
-                ( (setter model updatedWorld)
+                ( updatedWorld
                 , Cmd.map Msg commands
                 )
 
         Msg msg ->
             let
                 ( updatedWorld, commands ) =
-                    applyListeners engine (getter model) msg
+                    applyListeners engine world msg
             in
-                ( (setter model updatedWorld)
+                ( updatedWorld
                 , Cmd.map Msg commands
                 )
