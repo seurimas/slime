@@ -76,8 +76,7 @@ type alias Model =
 
 
 type Msg
-    = Tick Float
-    | KeyDown KeyCode
+    = KeyDown KeyCode
     | KeyUp KeyCode
     | NewBall Int
 
@@ -545,7 +544,6 @@ subs m =
     Sub.batch
         [ Keyboard.downs KeyDown
         , Keyboard.ups KeyUp
-        , AnimationFrame.diffs Tick
         ]
 
 

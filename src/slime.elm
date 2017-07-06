@@ -40,6 +40,7 @@ module Slime
         , forEntityByUid
         , forNewEntity
         , (&=>)
+        , (&~>)
         )
 
 {-| Experimental
@@ -90,7 +91,7 @@ composed to operate in sequence to create an ECS Engine.
 @docs deleteEntity, (&->)
 
 # Retrieval
-@docs entities, entities2, entities3, getComponentById, getComponent, getEntityByUid, getEntity2ByUid, getEntity3ByUid
+@docs entities, entities2, entities3, getComponentById, getComponent, getEntityByUid, getEntity2ByUid, getEntity3ByUid, hasComponent
 
 # Entity management
 @docs entityExistsByUid, getUidFromId, getIdFromUid
@@ -194,33 +195,24 @@ tag i ma =
             Nothing
 
 
-addB : b -> Entity a -> Entity2 a b
-addB b e =
-    { id = e.id
-    , a = e.a
-    , b = b
-    }
-
-
 tag2 : EntityID -> ( Maybe a, Maybe b ) -> Maybe (Entity2 a b)
 tag2 i ( ma, mb ) =
-    tag i ma
-        |> Maybe.map2 addB mb
+    case ( ma, mb ) of
+        ( Just a, Just b ) ->
+            Just { id = i, a = a, b = b }
 
-
-addC : c -> Entity2 a b -> Entity3 a b c
-addC c e =
-    { id = e.id
-    , a = e.a
-    , b = e.b
-    , c = c
-    }
+        _ ->
+            Nothing
 
 
 tag3 : EntityID -> ( Maybe a, Maybe b, Maybe c ) -> Maybe (Entity3 a b c)
 tag3 i ( ma, mb, mc ) =
-    tag2 i ( ma, mb )
-        |> Maybe.map2 addC mc
+    case ( ma, mb, mc ) of
+        ( Just a, Just b, Just c ) ->
+            Just { id = i, a = a, b = b, c = c }
+
+        _ ->
+            Nothing
 
 
 
@@ -559,17 +551,23 @@ stepEntities3 specA specB specC update record =
 
 {-| Filters a step entity block. Example:
 
-    stepGravity =
-        stepEntities2 transform velocity
-            |> filtered (\ent2 world -> getComponentById antigrav ent2.id world == Nothing)
-            |> applyGravity
-
+    stepGravity world =
+        (stepEntities2 transform velocity
+            |> filtered
+                (\ent2 -> getComponentById antigrav ent2.id world == Nothing)
+                applyGravity)
+            world
 -}
-filtered : (Tagged x -> world -> Bool) -> ((Tagged x -> Tagged x) -> world -> world) -> (Tagged x -> Tagged x) -> world -> world
-filtered check stepEnts updateFunc world =
+filtered :
+    (Tagged x -> Bool)
+    -> (Tagged x -> Tagged x)
+    -> ((Tagged x -> Tagged x) -> world -> world)
+    -> world
+    -> world
+filtered check updateFunc stepEnts world =
     let
         filteredUpdate entity =
-            case check entity world of
+            case check entity of
                 True ->
                     updateFunc entity
 

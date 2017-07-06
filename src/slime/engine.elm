@@ -38,10 +38,10 @@ module Slime.Engine
 @docs timed, untimed, noOptions, cmds, deletes, cmdsAndDeletes
 
 # Systems
-@docs System, untimedSystem, timedSystem, systemWith
+@docs System, untimedSystem, timedSystem, systemWith, systemMap
 
 # Listeners
-@docs Listener, listener, listenerWith
+@docs Listener, listener, listenerWith, listenerMap
 
 # Manual methods
 @docs applyListeners, applySystems

@@ -1,8 +1,9 @@
 [
   {
     "name": "Slime.Engine",
-    "comment": " Engine provides a simple way to manage a growing game. To do so, it needs to be provided with a few values:\n\n    -- An entity deletor. This is composed via Slime.deleteEntity and Slime.(&->). (Entity creation is handled more lazily and therefor does not require a matching value)\n    -- A list of Systems. These are explained further later, but they basically conform to the usual ECS model.\n    -- A list of Listeners. These allow the world to be updated based on TEA messages.\n\n\n# The Engine\n@docs Engine, initEngine\n\n# Systems\n@docs System, applySystems\n\n# Listeners\n@docs Listener, applyListeners\n\n",
-    "aliases": [
+    "comment": " Engine provides a simple way to manage a growing game. To do so, it needs to be provided with a few values:\n\n    -- An entity deletor. This is composed via Slime.deleteEntity and Slime.(&->). (Entity creation is handled more lazily and therefor does not require a matching value)\n    -- A list of Systems. These are explained further later, but they basically conform to the usual ECS model.\n    -- A list of Listeners. These allow the world to be updated based on TEA messages.\n\n\n# The Engine\n@docs Engine, initEngine, engineSubs, engineUpdate, Message\n\n# System and listener options\n@docs timed, untimed, noOptions, cmds, deletes, cmdsAndDeletes\n\n# Systems\n@docs System, untimedSystem, timedSystem, systemWith, systemMap\n\n# Listeners\n@docs Listener, listener, listenerWith, listenerMap\n\n# Manual methods\n@docs applyListeners, applySystems\n\n",
+    "aliases": [],
+    "types": [
       {
         "name": "Engine",
         "comment": " The Engine type is used as the first argument of applySystems and applyListeners.\n\nWith the engine, update functions can be massively simplified, in a true ECS fashion.\n",
@@ -10,10 +11,8 @@
           "world",
           "msg"
         ],
-        "type": "{ deleteEntity : Slime.EntityDeletor world , systems : List (Slime.Engine.System world msg) , listeners : List (Slime.Engine.Listener world msg) }"
-      }
-    ],
-    "types": [
+        "cases": []
+      },
       {
         "name": "Listener",
         "comment": " A Listener constructed in a similar way to Systems with a different purpose:\naccepting messages through TEA. It has the same options as System, except Time.\n",
@@ -21,29 +20,25 @@
           "world",
           "msg"
         ],
+        "cases": []
+      },
+      {
+        "name": "Message",
+        "comment": " Wraps messages and ticks.\n",
+        "args": [
+          "msg"
+        ],
         "cases": [
           [
-            "Listen",
+            "Tick",
             [
-              "msg -> world -> world"
+              "Float"
             ]
           ],
           [
-            "ListenAndDeletes",
+            "Msg",
             [
-              "msg -> world -> ( world, List Slime.EntityID )"
-            ]
-          ],
-          [
-            "ListenAndCommandsDeletes",
-            [
-              "msg -> world -> ( world, Platform.Cmd.Cmd msg, List Slime.EntityID )"
-            ]
-          ],
-          [
-            "ListenAndCommands",
-            [
-              "msg -> world -> ( world, Platform.Cmd.Cmd msg )"
+              "msg"
             ]
           ]
         ]
@@ -55,80 +50,106 @@
           "world",
           "msg"
         ],
-        "cases": [
-          [
-            "TimeAndDeletes",
-            [
-              "Float -> world -> ( world, List Slime.EntityID )"
-            ]
-          ],
-          [
-            "Time",
-            [
-              "Float -> world -> world"
-            ]
-          ],
-          [
-            "Deletes",
-            [
-              "world -> ( world, List Slime.EntityID )"
-            ]
-          ],
-          [
-            "TimeAndCommandsDeletes",
-            [
-              "Float -> world -> ( world, Platform.Cmd.Cmd msg, List Slime.EntityID )"
-            ]
-          ],
-          [
-            "TimeAndCommands",
-            [
-              "Float -> world -> ( world, Platform.Cmd.Cmd msg )"
-            ]
-          ],
-          [
-            "CommandsDeletes",
-            [
-              "world -> ( world, Platform.Cmd.Cmd msg, List Slime.EntityID )"
-            ]
-          ],
-          [
-            "Commands",
-            [
-              "world -> ( world, Platform.Cmd.Cmd msg )"
-            ]
-          ],
-          [
-            "Basic",
-            [
-              "world -> world"
-            ]
-          ]
-        ]
+        "cases": []
       }
     ],
     "values": [
       {
         "name": "applyListeners",
-        "comment": " A good way to use this is to curry the Engine out and use it in the catch-all\nof your update function:\n    runWorld = applySystems engine\nAnd then later...\n    _ ->\n        (updatedWorld, cmd) = runWorld msg\n",
+        "comment": " Useful if you write your own update method. Uses listeners as defined in the\nprovided engine.\n",
         "type": "Slime.Engine.Engine world msg -> world -> msg -> ( world, Platform.Cmd.Cmd msg )"
       },
       {
         "name": "applySystems",
-        "comment": " A good way to use this is to curry the Engine out:\n    runWorld = applySystems engine\nAnd then later...\n    (updatedWorld, cmd) = runWorld deltaTime\n",
+        "comment": " Useful if you write your own update method. Uses systems as defined in the\nprovided engine.\n",
         "type": "Slime.Engine.Engine world msg -> world -> Float -> ( world, Platform.Cmd.Cmd msg )"
+      },
+      {
+        "name": "cmds",
+        "comment": " Use in systemWith/listenerWith to define a system or listener with commands.\n",
+        "type": "( world, Platform.Cmd.Cmd msg ) -> Slime.Engine.SystemStep world msg"
+      },
+      {
+        "name": "cmdsAndDeletes",
+        "comment": " Use in systemWith/listenerWith to define a system or listener with commands and deletes.\n",
+        "type": "( world, Platform.Cmd.Cmd msg, List Slime.EntityID ) -> Slime.Engine.SystemStep world msg"
+      },
+      {
+        "name": "deletes",
+        "comment": " Use in systemWith/listenerWith to define a system or listener with deletes.\n",
+        "type": "( world, List Slime.EntityID ) -> Slime.Engine.SystemStep world msg"
+      },
+      {
+        "name": "engineSubs",
+        "comment": " Takes the subscriptions for your app and wraps them for the engine. Time messages are provided by the engine.\n\nFor use with engineUpdate.\n\nExample:\n    Sub.batch [ ... ]\n        |> engineSubs\n",
+        "type": "Platform.Sub.Sub msg -> Platform.Sub.Sub (Slime.Engine.Message msg)"
+      },
+      {
+        "name": "engineUpdate",
+        "comment": " Wraps up the engine in such a way that you can use it as your entire update function, if desired. Requires use of engineSubs.\n",
+        "type": "Slime.Engine.Engine world msg -> Slime.Engine.Message msg -> world -> ( world, Platform.Cmd.Cmd (Slime.Engine.Message msg) )"
       },
       {
         "name": "initEngine",
         "comment": " Initializes an Engine with a deletor, a list of systems, and a list of listeners.\n",
         "type": "Slime.EntityDeletor world -> List (Slime.Engine.System world msg) -> List (Slime.Engine.Listener world msg) -> Slime.Engine.Engine world msg"
+      },
+      {
+        "name": "listener",
+        "comment": " Creates a listener with no options (no commands are created and no deletes).\n",
+        "type": "(msg -> world -> world) -> Slime.Engine.Listener world msg"
+      },
+      {
+        "name": "listenerMap",
+        "comment": " Maps a listener of one message type to another.\n",
+        "type": "(msg -> subMsg) -> (subMsg -> msg) -> Slime.Engine.Listener world subMsg -> Slime.Engine.Listener world msg"
+      },
+      {
+        "name": "listenerWith",
+        "comment": " Creates a listener with the given options (e.g. cmds, deletes, cmdsAndDeletes)\n",
+        "type": "{ options : stepType -> Slime.Engine.SystemStep world msg } -> (msg -> world -> stepType) -> Slime.Engine.Listener world msg"
+      },
+      {
+        "name": "noOptions",
+        "comment": " Use in systemWith/listenerWith to define a system or listener with no commands or deletes.\n",
+        "type": "world -> Slime.Engine.SystemStep world msg"
+      },
+      {
+        "name": "systemMap",
+        "comment": " Maps a listener of one message type to another.\n",
+        "type": "(originalMsg -> msg) -> Slime.Engine.System world originalMsg -> Slime.Engine.System world msg"
+      },
+      {
+        "name": "systemWith",
+        "comment": " Creates a system with particular timing (timed or untimed) and options (e.g.\ncmds, deletes, cmdsAndDeletes).\n",
+        "type": "{ timing : baseSystem -> Float -> world -> stepType , options : stepType -> Slime.Engine.SystemStep world msg } -> baseSystem -> Slime.Engine.System world msg"
+      },
+      {
+        "name": "timed",
+        "comment": " Use in systemWith to define a timed system.\n",
+        "type": "(Float -> world -> step) -> Float -> world -> step"
+      },
+      {
+        "name": "timedSystem",
+        "comment": " Creates a system that accepts deltas, creates no commands or deletes.\n",
+        "type": "(Float -> world -> world) -> Slime.Engine.System world msg"
+      },
+      {
+        "name": "untimed",
+        "comment": " Use in systemWith to define an untimed system.\n",
+        "type": "(world -> step) -> Float -> world -> step"
+      },
+      {
+        "name": "untimedSystem",
+        "comment": " Creates a system that does not accept deltas, creates no commands or deletes.\n",
+        "type": "(world -> world) -> Slime.Engine.System world msg"
       }
     ],
     "generated-with-elm-version": "0.18.0"
   },
   {
     "name": "Slime",
-    "comment": " Experimental\n\nThis library provides an easy way to construct entity-component-system style\ncodeflow in Elm. It achieves this mostly by leveraging currying and getter/setters. For example:\n\n    type alias World =\n        EntitySet\n            { transforms : ComponentSet Rect\n            , balls : ComponentSet Ball\n            }\n\n    transforms : ComponentSpec Rect World\n    transforms =\n        { getter: .transforms,\n        , setter: (\\world -> \\comps -> {world | transforms = comps})\n        }\n\n\n    balls : ComponentSpec Ball World\n    balls =\n        { getter: .balls,\n        , setter: (\\world -> \\comps -> {world | balls = comps})\n        }\n\n    moveBalls : Float -> World -> World\n    moveBalls delta =\n        -- ...\n          stepEntities2 balls transforms (\\ent2 -> { ent2 | b = addVelocity ent2.a ent2.b delta })\n\nstepEntities2 goes through all the balls (any entity with a ball component and transform component)\nin this example and updates their location based on their velocity and the time elapsed.\n\nBecause moveBalls' type signature has no concept of the components involved, these systems can easily be\ncomposed to operate in sequence to create an ECS Engine.\n\n# Types\n@docs EntityID, EntitySet, ComponentSpec, ComponentSet, EntityDeletor, Entity, Entity2, Entity3\n\n# Updates and Maps\n@docs map, stepEntities, stepEntities2\n\n# Initialization\n@docs initComponents, initIdSource\n\n# Deletion\n@docs deleteEntity, (&->)\n\n# Retrieval\n@docs entities, entities2, getComponent, getEntityByUid, getEntity2ByUid, getEntity3ByUid, getUidFromId, getIdFromUid\n\n# Updates\n@docs setEntity, setEntity2\n\n# Creation\n@docs spawnEmpty, spawnEntity, spawnEntity2, spawnEntities, spawnEntities2\n",
+    "comment": " Experimental\n\nThis library provides an easy way to construct entity-component-system style\ncodeflow in Elm. It achieves this mostly by leveraging currying and getter/setters. For example:\n\n    type alias World =\n        EntitySet\n            { transforms : ComponentSet Rect\n            , balls : ComponentSet Ball\n            }\n\n    transforms : ComponentSpec Rect World\n    transforms =\n        { getter: .transforms,\n        , setter: (\\world -> \\comps -> {world | transforms = comps})\n        }\n\n\n    balls : ComponentSpec Ball World\n    balls =\n        { getter: .balls,\n        , setter: (\\world -> \\comps -> {world | balls = comps})\n        }\n\n    moveBalls : Float -> World -> World\n    moveBalls delta =\n        -- ...\n          stepEntities2 balls transforms (\\ent2 -> { ent2 | b = addVelocity ent2.a ent2.b delta })\n\nstepEntities2 goes through all the balls (any entity with a ball component and transform component)\nin this example and updates their location based on their velocity and the time elapsed.\n\nBecause moveBalls' type signature has no concept of the components involved, these systems can easily be\ncomposed to operate in sequence to create an ECS Engine.\n\n# Types\n@docs EntityID, EntitySet, ComponentSpec, ComponentSet, EntityDeletor, Entity, Entity2, Entity3\n\n# Updates and Maps\n@docs map, stepEntities, stepEntities2, stepEntities3\n\n# Initialization\n@docs initComponents, initIdSource\n\n# Deletion\n@docs deleteEntity, (&->)\n\n# Retrieval\n@docs entities, entities2, entities3, getComponentById, getComponent, getEntityByUid, getEntity2ByUid, getEntity3ByUid, hasComponent\n\n# Entity management\n@docs entityExistsByUid, getUidFromId, getIdFromUid\n\n# Updates\n@docs setEntity, setEntity2, setEntity3, forEntityById, forEntityByUid, (&=>), (&~>)\n\n# Creation\n@docs spawnEmpty, spawnEntity, spawnEntity2, spawnEntities, spawnEntities2, forNewEntity\n",
     "aliases": [
       {
         "name": "ComponentSet",
@@ -153,7 +174,7 @@
         "args": [
           "a"
         ],
-        "type": "{ id : Slime.EntityID, a : a }"
+        "type": "Slime.Tagged { a : a }"
       },
       {
         "name": "Entity2",
@@ -162,7 +183,7 @@
           "a",
           "b"
         ],
-        "type": "{ id : Slime.EntityID, a : a, b : b }"
+        "type": "Slime.Tagged { a : a, b : b }"
       },
       {
         "name": "Entity3",
@@ -172,7 +193,7 @@
           "b",
           "c"
         ],
-        "type": "{ id : Slime.EntityID, a : a, b : b, c : c }"
+        "type": "Slime.Tagged { a : a, b : b, c : c }"
       },
       {
         "name": "EntityDeletor",
@@ -207,6 +228,16 @@
         "precedence": 1
       },
       {
+        "name": "&=>",
+        "comment": " Sets a particular entity's component. Used with forEntityById and forEntityByUid.\nExample:\n    (_, updatedWorld) =\n        forEntityById id world\n            &=> (locations, (0, 0))\n            &=> (sizes, (2, 6))\n\n",
+        "type": "( Maybe.Maybe Slime.EntityID, world ) -> ( Slime.ComponentSpec a world, a ) -> ( Maybe.Maybe Slime.EntityID, world )"
+      },
+      {
+        "name": "&~>",
+        "comment": " Updates a particular entity's component. Used with forEntityById and forEntityByUid.\n    (_, updatedWorld) =\n        forEntityById id world\n            &=> (locations, moveMe)\n            &=> (sizes, shrinkMe)\n\n",
+        "type": "( Maybe.Maybe Slime.EntityID, Slime.EntitySet world ) -> ( Slime.ComponentSpec a (Slime.EntitySet world) , Maybe.Maybe a -> Maybe.Maybe a ) -> ( Maybe.Maybe Slime.EntityID, Slime.EntitySet world )"
+      },
+      {
         "name": "deleteEntity",
         "comment": " Use as the start of a deletion block:\n\n    deletor = deleteEntity transformSpec\n        &-> massSpec\n        &-> anotherSpec\n\nThe resulting deletor takes an EntityID and a world and clears the world of that Entity.\n",
         "type": "Slime.ComponentSpec a (Slime.EntitySet world) -> Slime.EntityDeletor (Slime.EntitySet world)"
@@ -222,9 +253,39 @@
         "type": "Slime.ComponentSpec a world -> Slime.ComponentSpec b world -> world -> List (Slime.Entity2 a b)"
       },
       {
+        "name": "entities3",
+        "comment": " Simple entity retrieval. An entity is only included if all components provided exist for that entity.\n",
+        "type": "Slime.ComponentSpec a world -> Slime.ComponentSpec b world -> Slime.ComponentSpec c world -> world -> List (Slime.Entity3 a b c)"
+      },
+      {
+        "name": "entityExistsByUid",
+        "comment": "\n",
+        "type": "Slime.EntitySet world -> Slime.EntityID -> Bool"
+      },
+      {
+        "name": "forEntityById",
+        "comment": " Begin a chain of sets for a particular entity id.\n",
+        "type": "Slime.EntityID -> world -> ( Maybe.Maybe Slime.EntityID, world )"
+      },
+      {
+        "name": "forEntityByUid",
+        "comment": " Begin a chain of sets for a particular entity id.\n",
+        "type": "Slime.EntityID -> Slime.EntitySet world -> ( Maybe.Maybe Slime.EntityID, Slime.EntitySet world )"
+      },
+      {
+        "name": "forNewEntity",
+        "comment": " Begins a chain of sets for a new entity. Useful for complex entity spawning.\n",
+        "type": "Slime.EntitySet world -> ( Maybe.Maybe Slime.EntityID, Slime.EntitySet world )"
+      },
+      {
         "name": "getComponent",
         "comment": " Simple retrieval from a component set.\n",
         "type": "Slime.ComponentSet a -> Slime.EntityID -> Maybe.Maybe a"
+      },
+      {
+        "name": "getComponentById",
+        "comment": " Try to prefer getEntity(#)ByUid where appropriate. This is useful for filters, however.\n",
+        "type": "Slime.ComponentSpec a world -> Slime.EntityID -> world -> Maybe.Maybe a"
       },
       {
         "name": "getEntity2ByUid",
@@ -252,6 +313,11 @@
         "type": "Slime.EntitySet world -> Slime.EntityID -> Maybe.Maybe Slime.EntityID"
       },
       {
+        "name": "hasComponent",
+        "comment": " Filter or helper function to check if a component exists for a given entity\n",
+        "type": "Slime.ComponentSpec a world -> Slime.Tagged x -> world -> Bool"
+      },
+      {
         "name": "initComponents",
         "comment": " Use to create component sets.\n",
         "type": "Slime.ComponentSet a"
@@ -275,6 +341,11 @@
         "name": "setEntity2",
         "comment": " Sets the world with an entity's component updated.\n",
         "type": "Slime.ComponentSpec a world -> Slime.ComponentSpec b world -> world -> Slime.Entity2 a b -> world"
+      },
+      {
+        "name": "setEntity3",
+        "comment": " Sets the world with an entity's component updated.\n",
+        "type": "Slime.ComponentSpec a world -> Slime.ComponentSpec b world -> Slime.ComponentSpec c world -> world -> Slime.Entity3 a b c -> world"
       },
       {
         "name": "spawnEmpty",
@@ -310,6 +381,11 @@
         "name": "stepEntities2",
         "comment": " Step entities based on two component.\n",
         "type": "Slime.ComponentSpec a world -> Slime.ComponentSpec b world -> (Slime.Entity2 a b -> Slime.Entity2 a b) -> world -> world"
+      },
+      {
+        "name": "stepEntities3",
+        "comment": " Step entities based on three component.\n",
+        "type": "Slime.ComponentSpec a world -> Slime.ComponentSpec b world -> Slime.ComponentSpec c world -> (Slime.Entity3 a b c -> Slime.Entity3 a b c) -> world -> world"
       }
     ],
     "generated-with-elm-version": "0.18.0"
