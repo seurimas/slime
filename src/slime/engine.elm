@@ -260,7 +260,7 @@ initEngine deleteEntity systems listeners =
 
 sweepDeletes : EntityDeletor world -> world -> List EntityID -> world
 sweepDeletes deletes world =
-    List.foldr (flip deletes) world
+    List.foldr deletes world
 
 
 applySystem : EntityDeletor world -> System world msg -> world -> Float -> ( world, Cmd msg )

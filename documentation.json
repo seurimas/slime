@@ -149,7 +149,7 @@
   },
   {
     "name": "Slime",
-    "comment": " Experimental\n\nThis library provides an easy way to construct entity-component-system style\ncodeflow in Elm. It achieves this mostly by leveraging currying and getter/setters. For example:\n\n    type alias World =\n        EntitySet\n            { transforms : ComponentSet Rect\n            , balls : ComponentSet Ball\n            }\n\n    transforms : ComponentSpec Rect World\n    transforms =\n        { getter: .transforms,\n        , setter: (\\world -> \\comps -> {world | transforms = comps})\n        }\n\n\n    balls : ComponentSpec Ball World\n    balls =\n        { getter: .balls,\n        , setter: (\\world -> \\comps -> {world | balls = comps})\n        }\n\n    moveBalls : Float -> World -> World\n    moveBalls delta =\n        -- ...\n          stepEntities2 balls transforms (\\ent2 -> { ent2 | b = addVelocity ent2.a ent2.b delta })\n\nstepEntities2 goes through all the balls (any entity with a ball component and transform component)\nin this example and updates their location based on their velocity and the time elapsed.\n\nBecause moveBalls' type signature has no concept of the components involved, these systems can easily be\ncomposed to operate in sequence to create an ECS Engine.\n\n# Types\n@docs EntityID, EntitySet, ComponentSpec, ComponentSet, EntityDeletor, Entity, Entity2, Entity3\n\n# Updates and Maps\n@docs map, stepEntities, stepEntities2, stepEntities3\n\n# Initialization\n@docs initComponents, initIdSource\n\n# Deletion\n@docs deleteEntity, (&->)\n\n# Retrieval\n@docs entities, entities2, entities3, getComponentById, getComponent, getEntityByUid, getEntity2ByUid, getEntity3ByUid, hasComponent\n\n# Entity management\n@docs entityExistsByUid, getUidFromId, getIdFromUid\n\n# Updates\n@docs setEntity, setEntity2, setEntity3, forEntityById, forEntityByUid, (&=>), (&~>)\n\n# Creation\n@docs spawnEmpty, spawnEntity, spawnEntity2, spawnEntities, spawnEntities2, forNewEntity\n",
+    "comment": " Experimental\n\nThis library provides an easy way to construct entity-component-system style\ncodeflow in Elm. It achieves this mostly by leveraging currying and getter/setters. For example:\n\n    type alias World =\n        EntitySet\n            { transforms : ComponentSet Rect\n            , balls : ComponentSet Ball\n            }\n\n    transforms : ComponentSpec Rect World\n    transforms =\n        { getter: .transforms,\n        , setter: (\\world -> \\comps -> {world | transforms = comps})\n        }\n\n\n    balls : ComponentSpec Ball World\n    balls =\n        { getter: .balls,\n        , setter: (\\world -> \\comps -> {world | balls = comps})\n        }\n\n    moveBalls : Float -> World -> World\n    moveBalls delta =\n        -- ...\n          stepEntities (entities2 balls transforms) (\\ent2 -> { ent2 | b = addVelocity ent2.a ent2.b delta })\n\nstepEntities goes through all the balls (any entity with a ball component and transform component)\nin this example and updates their location based on their velocity and the time elapsed.\n\nBecause moveBalls' type signature has no concept of the components involved, these systems can easily be\ncomposed to operate in sequence to create an ECS Engine.\n\n# Types\n@docs EntityID, EntitySet, ComponentSpec, EntitySpec, ComponentSet, EntityDeletor, Entity, Entity2, Entity3\n\n# Entity specs\n@docs entities, entities2, entities3\n\n# Updates and Maps\n@docs map, stepEntities, stepEntitiesWith\n\n# Initialization\n@docs initComponents, initIdSource\n\n# Deletion\n@docs deleteEntity, (&->)\n\n# Retrieval\n@docs getEntities, getEntities2, getEntities3, (&.), getEntityByUid, getEntity2ByUid, getEntity3ByUid, getComponentById, getComponent, hasComponent\n\n# Entity management\n@docs entityExistsByUid, getUidFromId, getIdFromUid\n\n# Updates\n@docs setEntity, setEntity2, setEntity3, forEntityById, forEntityByUid, (&=>), (&~>)\n\n# Creation\n@docs spawnEmpty, spawnEntity, spawnEntity2, spawnEntities, spawnEntities2, forNewEntity\n",
     "aliases": [
       {
         "name": "ComponentSet",
@@ -166,7 +166,7 @@
           "a",
           "world"
         ],
-        "type": "{ getter : world -> Slime.ComponentSet a , setter : world -> Slime.ComponentSet a -> world }"
+        "type": "{ getter : world -> Slime.ComponentSet a , setter : Slime.ComponentSet a -> world -> world }"
       },
       {
         "name": "Entity",
@@ -201,7 +201,7 @@
         "args": [
           "world"
         ],
-        "type": "world -> Slime.EntityID -> world"
+        "type": "Slime.EntityID -> world -> world"
       },
       {
         "name": "EntityID",
@@ -216,6 +216,15 @@
           "world"
         ],
         "type": "{ world | idSource : Slime.IDSource }"
+      },
+      {
+        "name": "EntitySpec",
+        "comment": " ",
+        "args": [
+          "ent",
+          "world"
+        ],
+        "type": "{ getter : world -> List (Slime.Tagged ent) , setter : List (Slime.Tagged ent) -> world -> world }"
       }
     ],
     "types": [],
@@ -226,6 +235,11 @@
         "type": "Slime.EntityDeletor (Slime.EntitySet world) -> Slime.ComponentSpec b (Slime.EntitySet world) -> Slime.EntityDeletor (Slime.EntitySet world)",
         "associativity": "left",
         "precedence": 1
+      },
+      {
+        "name": "&.",
+        "comment": " Convenience notation for retrieving based on an EntitySpec\n",
+        "type": "world -> Slime.EntitySpec ent world -> List (Slime.Tagged ent)"
       },
       {
         "name": "&=>",
@@ -244,18 +258,18 @@
       },
       {
         "name": "entities",
-        "comment": " Simple entity retrieval.\n",
-        "type": "Slime.ComponentSpec a world -> world -> List (Slime.Entity a)"
+        "comment": " Defines an entity spec based on one component. These are all entities which have that component.\n",
+        "type": "Slime.ComponentSpec a world -> Slime.EntitySpec { a : a } world"
       },
       {
         "name": "entities2",
-        "comment": " Simple entity retrieval. An entity is only included if both components provided exist for that entity.\n",
-        "type": "Slime.ComponentSpec a world -> Slime.ComponentSpec b world -> world -> List (Slime.Entity2 a b)"
+        "comment": " Defines an entity spec based on two components.\nThese are all entities which have both component.\n",
+        "type": "Slime.ComponentSpec a world -> Slime.ComponentSpec b world -> Slime.EntitySpec { a : a, b : b } world"
       },
       {
         "name": "entities3",
-        "comment": " Simple entity retrieval. An entity is only included if all components provided exist for that entity.\n",
-        "type": "Slime.ComponentSpec a world -> Slime.ComponentSpec b world -> Slime.ComponentSpec c world -> world -> List (Slime.Entity3 a b c)"
+        "comment": " Defines an entity spec based on three components.\nThese are all entities which have all component.\n",
+        "type": "Slime.ComponentSpec a world -> Slime.ComponentSpec b world -> Slime.ComponentSpec c world -> Slime.EntitySpec { a : a, b : b, c : c } world"
       },
       {
         "name": "entityExistsByUid",
@@ -274,7 +288,7 @@
       },
       {
         "name": "forNewEntity",
-        "comment": " Begins a chain of sets for a new entity. Useful for complex entity spawning.\n",
+        "comment": " Begins a chain of sets for a new entity. Useful for complex entity spawning.\nExample:\n\n    (_, updatedWorld) =\n        forNewEntity world\n            &=> (locations (0, 0))\n            &=> (place (2, 6))\n",
         "type": "Slime.EntitySet world -> ( Maybe.Maybe Slime.EntityID, Slime.EntitySet world )"
       },
       {
@@ -286,6 +300,21 @@
         "name": "getComponentById",
         "comment": " Try to prefer getEntity(#)ByUid where appropriate. This is useful for filters, however.\n",
         "type": "Slime.ComponentSpec a world -> Slime.EntityID -> world -> Maybe.Maybe a"
+      },
+      {
+        "name": "getEntities",
+        "comment": " Simple entity retrieval.\n",
+        "type": "Slime.ComponentSpec a world -> world -> List (Slime.Entity a)"
+      },
+      {
+        "name": "getEntities2",
+        "comment": " Simple entity retrieval. An entity is only included if both components provided exist for that entity.\n",
+        "type": "Slime.ComponentSpec a world -> Slime.ComponentSpec b world -> world -> List (Slime.Entity2 a b)"
+      },
+      {
+        "name": "getEntities3",
+        "comment": " Simple entity retrieval. An entity is only included if all components provided exist for that entity.\n",
+        "type": "Slime.ComponentSpec a world -> Slime.ComponentSpec b world -> Slime.ComponentSpec c world -> world -> List (Slime.Entity3 a b c)"
       },
       {
         "name": "getEntity2ByUid",
@@ -335,17 +364,17 @@
       {
         "name": "setEntity",
         "comment": " Sets the world with an entity's component updated.\n",
-        "type": "Slime.ComponentSpec a world -> world -> Slime.Entity a -> world"
+        "type": "Slime.ComponentSpec a world -> Slime.Entity a -> world -> world"
       },
       {
         "name": "setEntity2",
         "comment": " Sets the world with an entity's component updated.\n",
-        "type": "Slime.ComponentSpec a world -> Slime.ComponentSpec b world -> world -> Slime.Entity2 a b -> world"
+        "type": "Slime.ComponentSpec a world -> Slime.ComponentSpec b world -> Slime.Entity2 a b -> world -> world"
       },
       {
         "name": "setEntity3",
         "comment": " Sets the world with an entity's component updated.\n",
-        "type": "Slime.ComponentSpec a world -> Slime.ComponentSpec b world -> Slime.ComponentSpec c world -> world -> Slime.Entity3 a b c -> world"
+        "type": "Slime.ComponentSpec a world -> Slime.ComponentSpec b world -> Slime.ComponentSpec c world -> Slime.Entity3 a b c -> world -> world"
       },
       {
         "name": "spawnEmpty",
@@ -374,18 +403,13 @@
       },
       {
         "name": "stepEntities",
-        "comment": " Step entities based only on one component.\n",
-        "type": "Slime.ComponentSpec a world -> (a -> a) -> world -> world"
+        "comment": " Steps the entities in a world based on the entity spec and update function provided.\n",
+        "type": "Slime.EntitySpec ent world -> (Slime.Tagged ent -> Slime.Tagged ent) -> world -> world"
       },
       {
-        "name": "stepEntities2",
-        "comment": " Step entities based on two component.\n",
-        "type": "Slime.ComponentSpec a world -> Slime.ComponentSpec b world -> (Slime.Entity2 a b -> Slime.Entity2 a b) -> world -> world"
-      },
-      {
-        "name": "stepEntities3",
-        "comment": " Step entities based on three component.\n",
-        "type": "Slime.ComponentSpec a world -> Slime.ComponentSpec b world -> Slime.ComponentSpec c world -> (Slime.Entity3 a b c -> Slime.Entity3 a b c) -> world -> world"
+        "name": "stepEntitiesWith",
+        "comment": " Step entities with an extra parameter. Useful for passing through an accumulator\n(e.g. a counter or a random number generator).\n",
+        "type": "Slime.EntitySpec ent world -> (( Slime.Tagged ent, x ) -> ( Slime.Tagged ent, x )) -> ( world, x ) -> ( world, x )"
       }
     ],
     "generated-with-elm-version": "0.18.0"

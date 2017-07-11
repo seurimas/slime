@@ -3,6 +3,7 @@ module Slime
         ( EntityID
         , EntitySet
         , ComponentSpec
+        , EntitySpec
         , ComponentSet
         , EntityDeletor
         , initComponents
@@ -23,12 +24,15 @@ module Slime
         , setEntity
         , setEntity2
         , setEntity3
+        , getEntities
+        , getEntities2
+        , getEntities3
+        , (&.)
         , entities
         , entities2
         , entities3
         , stepEntities
-        , stepEntities2
-        , stepEntities3
+        , stepEntitiesWith
         , getComponentById
         , getComponent
         , hasComponent
@@ -57,32 +61,35 @@ codeflow in Elm. It achieves this mostly by leveraging currying and getter/sette
     transforms : ComponentSpec Rect World
     transforms =
         { getter: .transforms,
-        , setter: (\world -> \comps -> {world | transforms = comps})
+        , setter: (\comps world -> {world | transforms = comps})
         }
 
 
     balls : ComponentSpec Ball World
     balls =
         { getter: .balls,
-        , setter: (\world -> \comps -> {world | balls = comps})
+        , setter: (\comps world -> {world | balls = comps})
         }
 
     moveBalls : Float -> World -> World
     moveBalls delta =
         -- ...
-          stepEntities2 balls transforms (\ent2 -> { ent2 | b = addVelocity ent2.a ent2.b delta })
+          stepEntities (entities2 balls transforms) (\ent2 -> { ent2 | b = addVelocity ent2.a ent2.b delta })
 
-stepEntities2 goes through all the balls (any entity with a ball component and transform component)
+stepEntities goes through all the balls (any entity with a ball component and transform component)
 in this example and updates their location based on their velocity and the time elapsed.
 
 Because moveBalls' type signature has no concept of the components involved, these systems can easily be
 composed to operate in sequence to create an ECS Engine.
 
 # Types
-@docs EntityID, EntitySet, ComponentSpec, ComponentSet, EntityDeletor, Entity, Entity2, Entity3
+@docs EntityID, EntitySet, ComponentSpec, EntitySpec, ComponentSet, EntityDeletor, Entity, Entity2, Entity3
+
+# Entity specs
+@docs entities, entities2, entities3
 
 # Updates and Maps
-@docs map, stepEntities, stepEntities2, stepEntities3
+@docs map, stepEntities, stepEntitiesWith
 
 # Initialization
 @docs initComponents, initIdSource
@@ -91,7 +98,7 @@ composed to operate in sequence to create an ECS Engine.
 @docs deleteEntity, (&->)
 
 # Retrieval
-@docs entities, entities2, entities3, getComponentById, getComponent, getEntityByUid, getEntity2ByUid, getEntity3ByUid, hasComponent
+@docs getEntities, getEntities2, getEntities3, (&.), getEntityByUid, getEntity2ByUid, getEntity3ByUid, getComponentById, getComponent, hasComponent
 
 # Entity management
 @docs entityExistsByUid, getUidFromId, getIdFromUid
@@ -113,7 +120,7 @@ import Lazy.List exposing (LazyList, numbers, drop, (+++), headAndTail, cons)
 -}
 type alias ComponentSpec a world =
     { getter : world -> ComponentSet a
-    , setter : world -> ComponentSet a -> world
+    , setter : ComponentSet a -> world -> world
     }
 
 
@@ -124,22 +131,22 @@ type alias EntityID =
 
 {-| -}
 type alias EntityDeletor world =
-    world -> EntityID -> world
+    EntityID -> world -> world
 
 
 {-| -}
 type alias EntitySetter a world =
-    world -> Entity a -> world
+    Entity a -> world -> world
 
 
 {-| -}
 type alias EntitySetter2 a b world =
-    world -> Entity2 a b -> world
+    Entity2 a b -> world -> world
 
 
 {-| -}
 type alias EntitySetter3 a b c world =
-    world -> Entity3 a b c -> world
+    Entity3 a b c -> world -> world
 
 
 type alias IDSource =
@@ -161,6 +168,13 @@ type alias EntitySet world =
 {-| -}
 type alias Tagged r =
     { r | id : EntityID }
+
+
+{-| -}
+type alias EntitySpec ent world =
+    { getter : world -> List (Tagged ent)
+    , setter : List (Tagged ent) -> world -> world
+    }
 
 
 {-| -}
@@ -354,12 +368,12 @@ getEntity3ByUid specA specB specC world uid =
 The resulting deletor takes an EntityID and a world and clears the world of that Entity.
 -}
 deleteEntity : ComponentSpec a (EntitySet world) -> EntityDeletor (EntitySet world)
-deleteEntity spec world id =
+deleteEntity spec id world =
     let
         andReclaim id world =
             { world | idSource = reclaimId id world.idSource }
     in
-        deleteComponent spec world id
+        deleteComponent spec id world
             |> andReclaim id
 
 
@@ -370,7 +384,7 @@ deleteEntity spec world id =
 
 
 deleteComponent : ComponentSpec a (EntitySet world) -> EntityDeletor (EntitySet world)
-deleteComponent { getter, setter } world id =
+deleteComponent { getter, setter } id world =
     let
         delete index components =
             let
@@ -381,14 +395,14 @@ deleteComponent { getter, setter } world id =
     in
         getter world
             |> delete id
-            |> setter world
+            |> flip setter world
 
 
 {-| -}
 (&->) : EntityDeletor (EntitySet world) -> ComponentSpec b (EntitySet world) -> EntityDeletor (EntitySet world)
-(&->) accumulatedDelete newSpec world index =
-    accumulatedDelete world index
-        |> flip (deleteComponent newSpec) index
+(&->) accumulatedDelete newSpec index world =
+    accumulatedDelete index world
+        |> (deleteComponent newSpec) index
 infixl 1 &->
 
 
@@ -425,7 +439,7 @@ spawnEntity { getter, setter } entitySet { a } =
             getter updatedSet
                 |> setComponent id a
     in
-        ( setter updatedSet updatedComponents, id, uid )
+        ( setter updatedComponents updatedSet, id, uid )
 
 
 {-| A convenience method to spawn multiple entities, provided as a list.
@@ -459,7 +473,7 @@ spawnEntity2 specA specB entitySet { a, b } =
             specB.getter updatedSet
                 |> setComponent id b
     in
-        ( specA.setter updatedSet updatedComponentsA |> flip specB.setter updatedComponentsB, id, uid )
+        ( specA.setter updatedComponentsA updatedSet |> specB.setter updatedComponentsB, id, uid )
 
 
 {-| A convenience method to spawn multiple entities, provided as a list.
@@ -501,52 +515,47 @@ stepComponents update components =
         { components | contents = newContents }
 
 
-{-| Step entities based only on one component.
+setEntities : (Tagged a -> world -> world) -> List (Tagged a) -> world -> world
+setEntities setter updatedEntities record =
+    List.foldr setter record updatedEntities
+
+
+{-| Steps the entities in a world based on the entity spec and update function provided.
 -}
-stepEntities : ComponentSpec a world -> (a -> a) -> world -> world
-stepEntities { getter, setter } update record =
+stepEntities : EntitySpec ent world -> (Tagged ent -> Tagged ent) -> world -> world
+stepEntities { getter, setter } updateEnt world =
     let
-        components =
-            getter record
+        ents =
+            getter world
 
-        updatedComponents =
-            stepComponents update components
+        updatedEnts =
+            (List.map updateEnt) ents
     in
-        setter record updatedComponents
+        setter updatedEnts world
 
 
-{-| Step entities based on two component.
+{-| Step entities with an extra parameter. Useful for passing through an accumulator
+(e.g. a counter or a random number generator).
 -}
-stepEntities2 : ComponentSpec a world -> ComponentSpec b world -> (Entity2 a b -> Entity2 a b) -> world -> world
-stepEntities2 specA specB update record =
+stepEntitiesWith : EntitySpec ent world -> (( Tagged ent, x ) -> ( Tagged ent, x )) -> ( world, x ) -> ( world, x )
+stepEntitiesWith { getter, setter } updateWith ( world, extra ) =
     let
-        entities =
-            entities2 specA specB record
+        ents =
+            getter world
 
-        updatedEntities =
-            List.map update entities
+        folder nextEntity ( runningEntities, currentExtra ) =
+            let
+                ( updatedEntity, steppedExtra ) =
+                    updateWith ( nextEntity, currentExtra )
+            in
+                ( updatedEntity :: runningEntities, steppedExtra )
 
-        setter =
-            setEntity2 specA specB
+        ( updatedEntities, updatedExtra ) =
+            List.foldl folder ( [], extra ) ents
     in
-        (List.foldr (flip setter) record updatedEntities)
-
-
-{-| Step entities based on three component.
--}
-stepEntities3 : ComponentSpec a world -> ComponentSpec b world -> ComponentSpec c world -> (Entity3 a b c -> Entity3 a b c) -> world -> world
-stepEntities3 specA specB specC update record =
-    let
-        entities =
-            entities3 specA specB specC record
-
-        updatedEntities =
-            List.map update entities
-
-        setter =
-            setEntity3 specA specB specC
-    in
-        (List.foldr (flip setter) record updatedEntities)
+        ( setter updatedEntities world
+        , updatedExtra
+        )
 
 
 {-| Filters a step entity block. Example:
@@ -586,20 +595,20 @@ hasComponent { getter } ent world =
 
 {-| Sets the world with an entity's component updated.
 -}
-setEntity : ComponentSpec a world -> world -> Entity a -> world
-setEntity { getter, setter } record entity =
+setEntity : ComponentSpec a world -> Entity a -> world -> world
+setEntity { getter, setter } entity record =
     let
         updatedComponents =
             getter record
                 |> setComponent entity.id entity.a
     in
-        setter record updatedComponents
+        setter updatedComponents record
 
 
 {-| Sets the world with an entity's component updated.
 -}
-setEntity2 : ComponentSpec a world -> ComponentSpec b world -> world -> Entity2 a b -> world
-setEntity2 specA specB record entity =
+setEntity2 : ComponentSpec a world -> ComponentSpec b world -> Entity2 a b -> world -> world
+setEntity2 specA specB entity record =
     let
         updatedComponentsA =
             specA.getter record
@@ -609,14 +618,14 @@ setEntity2 specA specB record entity =
             specB.getter record
                 |> setComponent entity.id entity.b
     in
-        specA.setter record updatedComponentsA
-            |> flip specB.setter updatedComponentsB
+        specA.setter updatedComponentsA record
+            |> specB.setter updatedComponentsB
 
 
 {-| Sets the world with an entity's component updated.
 -}
-setEntity3 : ComponentSpec a world -> ComponentSpec b world -> ComponentSpec c world -> world -> Entity3 a b c -> world
-setEntity3 specA specB specC record entity =
+setEntity3 : ComponentSpec a world -> ComponentSpec b world -> ComponentSpec c world -> Entity3 a b c -> world -> world
+setEntity3 specA specB specC entity record =
     let
         updatedComponentsA =
             specA.getter record
@@ -630,9 +639,9 @@ setEntity3 specA specB specC record entity =
             specC.getter record
                 |> setComponent entity.id entity.c
     in
-        specA.setter record updatedComponentsA
-            |> flip specB.setter updatedComponentsB
-            |> flip specC.setter updatedComponentsC
+        specA.setter updatedComponentsA record
+            |> specB.setter updatedComponentsB
+            |> specC.setter updatedComponentsC
 
 
 
@@ -674,8 +683,8 @@ map { getter } func record =
 
 {-| Simple entity retrieval.
 -}
-entities : ComponentSpec a world -> world -> List (Entity a)
-entities { getter } record =
+getEntities : ComponentSpec a world -> world -> List (Entity a)
+getEntities { getter } record =
     getter record
         |> .contents
         |> indexedMap tag
@@ -684,8 +693,8 @@ entities { getter } record =
 
 {-| Simple entity retrieval. An entity is only included if both components provided exist for that entity.
 -}
-entities2 : ComponentSpec a world -> ComponentSpec b world -> world -> List (Entity2 a b)
-entities2 specA specB record =
+getEntities2 : ComponentSpec a world -> ComponentSpec b world -> world -> List (Entity2 a b)
+getEntities2 specA specB record =
     zip ((.contents << specA.getter) record) ((.contents << specB.getter) record)
         |> indexedMap tag2
         |> completeEntities
@@ -693,11 +702,47 @@ entities2 specA specB record =
 
 {-| Simple entity retrieval. An entity is only included if all components provided exist for that entity.
 -}
-entities3 : ComponentSpec a world -> ComponentSpec b world -> ComponentSpec c world -> world -> List (Entity3 a b c)
-entities3 specA specB specC record =
+getEntities3 : ComponentSpec a world -> ComponentSpec b world -> ComponentSpec c world -> world -> List (Entity3 a b c)
+getEntities3 specA specB specC record =
     zip3 ((.contents << specA.getter) record) ((.contents << specB.getter) record) ((.contents << specC.getter) record)
         |> indexedMap tag3
         |> completeEntities
+
+
+{-| Convenience notation for retrieving based on an EntitySpec
+-}
+(&.) : world -> EntitySpec ent world -> List (Tagged ent)
+(&.) world { getter } =
+    getter world
+
+
+{-| Defines an entity spec based on one component. These are all entities which have that component.
+-}
+entities : ComponentSpec a world -> EntitySpec { a : a } world
+entities specA =
+    { getter = getEntities specA
+    , setter = setEntities (setEntity specA)
+    }
+
+
+{-| Defines an entity spec based on two components.
+These are all entities which have both component.
+-}
+entities2 : ComponentSpec a world -> ComponentSpec b world -> EntitySpec { a : a, b : b } world
+entities2 specA specB =
+    { getter = getEntities2 specA specB
+    , setter = setEntities (setEntity2 specA specB)
+    }
+
+
+{-| Defines an entity spec based on three components.
+These are all entities which have all component.
+-}
+entities3 : ComponentSpec a world -> ComponentSpec b world -> ComponentSpec c world -> EntitySpec { a : a, b : b, c : c } world
+entities3 specA specB specC =
+    { getter = getEntities3 specA specB specC
+    , setter = setEntities (setEntity3 specA specB specC)
+    }
 
 
 {-| Begin a chain of sets for a particular entity id.
@@ -716,6 +761,12 @@ forEntityByUid uid world =
 
 
 {-| Begins a chain of sets for a new entity. Useful for complex entity spawning.
+Example:
+
+    (_, updatedWorld) =
+        forNewEntity world
+            &=> (locations (0, 0))
+            &=> (place (2, 6))
 -}
 forNewEntity : EntitySet world -> ( Maybe EntityID, EntitySet world )
 forNewEntity world =
@@ -744,7 +795,7 @@ Example:
                         |> setComponent id component
 
                 updatedWorld =
-                    setter world updatedComponents
+                    setter updatedComponents world
             in
                 ( mid, updatedWorld )
 
@@ -774,10 +825,10 @@ Example:
                     case updatedComponent of
                         Just updated ->
                             setComponent id updated (getter world)
-                                |> setter world
+                                |> flip setter world
 
                         Nothing ->
-                            deleteComponent spec world id
+                            deleteComponent spec id world
             in
                 ( mid, updatedWorld )
 

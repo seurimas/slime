@@ -84,14 +84,14 @@ type Msg
 transforms : ComponentSpec Rect World
 transforms =
     { getter = .transforms
-    , setter = (\world -> \comps -> { world | transforms = comps })
+    , setter = (\comps world -> { world | transforms = comps })
     }
 
 
 balls : ComponentSpec Ball World
 balls =
     { getter = .balls
-    , setter = (\world -> \comps -> { world | balls = comps })
+    , setter = (\comps world -> { world | balls = comps })
     }
 
 
@@ -120,14 +120,14 @@ spawnBall ( x, y, vx, vy ) world =
 paddles : ComponentSpec Paddle World
 paddles =
     { getter = .paddles
-    , setter = (\world -> \comps -> { world | paddles = comps })
+    , setter = (\comps world -> { world | paddles = comps })
     }
 
 
 scores : ComponentSpec Score World
 scores =
     { getter = .scores
-    , setter = (\world -> \comps -> { world | scores = comps })
+    , setter = (\comps world -> { world | scores = comps })
     }
 
 
@@ -237,7 +237,7 @@ moveBalls delta =
                 , y = transform.y + ball.vy * delta
             }
     in
-        stepEntities2 balls transforms (\ent2 -> { ent2 | b = addVelocity ent2.a ent2.b delta })
+        stepEntities (entities2 balls transforms) (\ent2 -> { ent2 | b = addVelocity ent2.a ent2.b delta })
 
 
 keepBalls : World -> World
@@ -262,16 +262,19 @@ keepBalls =
                 else
                     e2
     in
-        stepEntities2 balls transforms maybeBounce
+        stepEntities (entities2 balls transforms) maybeBounce
 
 
 updateScores : Float -> World -> ( World, List EntityID )
 updateScores deltaTime world =
     let
+        stepScore score =
+            { score | progress = score.progress + deltaTime }
+
         updatedWorld =
-            stepEntities scores (\score -> { score | progress = score.progress + deltaTime }) world
+            stepEntities (entities scores) (\entity -> { entity | a = stepScore entity.a }) world
     in
-        ( updatedWorld, List.filter (\e -> e.a.progress > e.a.lifetime) (entities scores updatedWorld) |> List.map .id )
+        ( updatedWorld, List.filter (\e -> e.a.progress > e.a.lifetime) (getEntities scores updatedWorld) |> List.map .id )
 
 
 scoreBalls : World -> ( World, Cmd Msg, List EntityID )
@@ -307,7 +310,7 @@ scoreBalls world =
                 |> Random.generate NewBall
 
         scoredBalls =
-            entities2 balls transforms world
+            getEntities2 balls transforms world
                 |> List.filter isScored
 
         newScores =
@@ -376,10 +379,10 @@ setPaddleKeys : Msg -> World -> World
 setPaddleKeys msg =
     case msg of
         KeyUp key ->
-            stepEntities paddles (updateKeyState key False)
+            stepEntities (entities paddles) (\entity -> { entity | a = (updateKeyState key False entity.a) })
 
         KeyDown key ->
-            stepEntities paddles (updateKeyState key True)
+            stepEntities (entities paddles) (\entity -> { entity | a = (updateKeyState key True entity.a) })
 
         _ ->
             identity
@@ -420,7 +423,7 @@ movePaddles delta =
                 else
                     e2
     in
-        stepEntities2 paddles transforms movePaddle
+        stepEntities (entities2 paddles transforms) movePaddle
 
 
 bounceBalls : World -> World
@@ -448,9 +451,9 @@ bounceBalls world =
                     e2
 
         paddleList =
-            entities2 paddles transforms world
+            getEntities2 paddles transforms world
     in
-        stepEntities2 balls transforms (\e2 -> List.foldr bounce e2 paddleList) world
+        stepEntities (entities2 balls transforms) (\e2 -> List.foldr bounce e2 paddleList) world
 
 
 renderTransforms =
