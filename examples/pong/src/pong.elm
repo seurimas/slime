@@ -4,7 +4,7 @@ module Pong exposing (main)
 @docs main
 -}
 
-import Random
+import Random.Pcg
 import Dict exposing (Dict)
 import Html exposing (Html, div)
 import Html.Attributes exposing (style)
@@ -67,6 +67,7 @@ type alias World =
         , paddles : ComponentSet Paddle
         , scores : ComponentSet Score
         , score : ( Int, Int )
+        , pcg : Random.Pcg.Seed
         }
 
 
@@ -78,7 +79,6 @@ type alias Model =
 type Msg
     = KeyDown KeyCode
     | KeyUp KeyCode
-    | NewBall Int
 
 
 transforms : ComponentSpec Rect World
@@ -95,8 +95,8 @@ balls =
     }
 
 
-spawnBall : ( Float, Float, Float, Float ) -> World -> World
-spawnBall ( x, y, vx, vy ) world =
+getBall : ( Float, Float, Float, Float ) -> { a : Rect, b : Ball }
+getBall ( x, y, vx, vy ) =
     let
         rect =
             { x = x
@@ -110,9 +110,17 @@ spawnBall ( x, y, vx, vy ) world =
             { vx = vx
             , vy = vy
             }
+    in
+        { a = rect
+        , b = ball
+        }
 
+
+spawnBall : ( Float, Float, Float, Float ) -> World -> World
+spawnBall spec world =
+    let
         ( newEntity, id, uid ) =
-            spawnEntity2 transforms balls world { a = rect, b = ball }
+            spawnEntity2 transforms balls world (getBall spec)
     in
         newEntity
 
@@ -185,7 +193,7 @@ engine =
         systems =
             [ timedSystem moveBalls
             , untimedSystem keepBalls
-            , systemWith { timing = untimed, options = cmdsAndDeletes } scoreBalls
+            , systemWith { timing = untimed, options = deletes } scoreBalls
             , untimedSystem bounceBalls
             , timedSystem movePaddles
             , systemWith { timing = timed, options = deletes } updateScores
@@ -193,7 +201,6 @@ engine =
 
         listeners =
             [ listener setPaddleKeys
-            , listener spawnNewBalls
             ]
     in
         Slime.Engine.initEngine deletor systems listeners
@@ -207,6 +214,7 @@ world =
     , paddles = initComponents
     , scores = initComponents
     , score = ( 0, 0 )
+    , pcg = Random.Pcg.initialSeed 8675309
     }
         |> spawnBall ( 247.5, 247.5, 100, 80 )
         {- |> spawnBall ( 247.5, 247.5, 80, 100 )
@@ -277,7 +285,7 @@ updateScores deltaTime world =
         ( updatedWorld, List.filter (\e -> e.a.progress > e.a.lifetime) (getEntities scores updatedWorld) |> List.map .id )
 
 
-scoreBalls : World -> ( World, Cmd Msg, List EntityID )
+scoreBalls : World -> ( World, List EntityID )
 scoreBalls world =
     let
         isScored e2 =
@@ -305,10 +313,6 @@ scoreBalls world =
                     }
                 }
 
-        newBall e2 =
-            Random.int 0 6
-                |> Random.generate NewBall
-
         scoredBalls =
             getEntities2 balls transforms world
                 |> List.filter isScored
@@ -321,13 +325,19 @@ scoreBalls world =
             , Tuple.second world.score + List.length (List.filter (\score -> score.a.x < 100) newScores)
             )
 
-        newBalls =
-            List.map newBall scoredBalls
+        newBallSpawn =
+            Random.Pcg.list (List.length newScores) (Random.Pcg.int 0 6 |> Random.Pcg.map getNewBall)
+
+        ( newBalls, updatedPcg ) =
+            Random.Pcg.step newBallSpawn world.pcg
 
         ( updatedWorld1, _, _ ) =
             spawnEntities scores world newScores
+
+        ( updatedWorld2, _, _ ) =
+            spawnEntities2 transforms balls updatedWorld1 newBalls
     in
-        ( { updatedWorld1 | score = updatedScore }, Cmd.batch newBalls, List.map .id scoredBalls )
+        ( { updatedWorld2 | score = updatedScore, pcg = updatedPcg }, List.map .id scoredBalls )
 
 
 directionToVelocity : Int -> ( Float, Float )
@@ -352,18 +362,13 @@ directionToVelocity index =
             ( -80, -100 )
 
 
-spawnNewBalls : Msg -> World -> World
-spawnNewBalls msg world =
-    case msg of
-        NewBall dir ->
-            let
-                ( vx, vy ) =
-                    directionToVelocity dir
-            in
-                spawnBall ( 247.5, 247.5, vx, vy ) world
-
-        _ ->
-            world
+getNewBall : Int -> { a : Rect, b : Ball }
+getNewBall dir =
+    let
+        ( vx, vy ) =
+            directionToVelocity dir
+    in
+        getBall ( 247.5, 247.5, vx, vy )
 
 
 updateKeyState key isDown paddle =
@@ -383,9 +388,6 @@ setPaddleKeys msg =
 
         KeyDown key ->
             stepEntities (entities paddles) (\entity -> { entity | a = (updateKeyState key True entity.a) })
-
-        _ ->
-            identity
 
 
 movement : ( Bool, Bool ) -> Float
