@@ -7,11 +7,13 @@ An ECS library for Elm. Slime provides an easy way to build a full game, using c
 # Examples
 Pong is implemented in the examples directory. To run:
 
-```git clone https://github.com/Seurimas/slime.git
+```
+git clone https://github.com/Seurimas/slime.git
 cd slime/examples/pong
 elm reactor
 
-... Open http://localhost:8000/src/pong.elm ...```
+... Open http://localhost:8000/src/pong.elm ...
+```
 
 # Change log
 * 1.1.0 -> 2.0.0
