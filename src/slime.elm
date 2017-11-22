@@ -3,6 +3,7 @@ module Slime
         ( EntityID
         , EntitySet
         , ComponentSpec
+        , componentSpec
         , EntitySpec
         , ComponentSet
         , EntityDeletor
@@ -86,7 +87,7 @@ composed to operate in sequence to create an ECS Engine.
 @docs EntityID, EntitySet, ComponentSpec, EntitySpec, ComponentSet, EntityDeletor, Entity, Entity2, Entity3
 
 # Entity specs
-@docs entities, entities2, entities3
+@docs componentSpec, entities, entities2, entities3
 
 # Updates and Maps
 @docs map, stepEntities, stepEntitiesWith
@@ -121,6 +122,15 @@ import Lazy.List exposing (LazyList, numbers, drop, (+++), headAndTail, cons)
 type alias ComponentSpec a world =
     { getter : world -> ComponentSet a
     , setter : ComponentSet a -> world -> world
+    }
+
+
+{-|
+-}
+componentSpec : (world -> ComponentSet a) -> (ComponentSet a -> world -> world) -> ComponentSpec a world
+componentSpec getter setter =
+    { getter = getter
+    , setter = setter
     }
 
 
