@@ -20,8 +20,8 @@ elm reactor
 # Change log
 * 2.0.0 -> 2.1.0
   * Added `componentSpec` for a type-ignorant constructor. Use that instead of { getter, setter } records.
-	* Added `stepEntitiesAndThen`, for steppers who want to have side effects on the world. This won't work for every case, but it will cover a lot.
-	* Added `forNewEntities`, for spawning several entities with particular parameters.
+  * Added `stepEntitiesAndThen`, for steppers who want to have side effects on the world. This won't work for every case, but it will cover a lot.
+  * Added `forNewEntities`, for spawning several entities with particular parameters.
 * 1.1.0 -> 2.0.0
 	* Revise system creation. Use `untimedSystem`, `timedSystem`, and `systemWith` in Slime.Engine.
 	* Revise steppers. Use `stepEntities`, and `entities`/`entities2`/`entities3`.
