@@ -149,7 +149,7 @@
   },
   {
     "name": "Slime",
-    "comment": " Experimental\n\nThis library provides an easy way to construct entity-component-system style\ncodeflow in Elm. It achieves this mostly by leveraging currying and getter/setters. For example:\n\n    type alias World =\n        EntitySet\n            { transforms : ComponentSet Rect\n            , balls : ComponentSet Ball\n            }\n\n    transforms : ComponentSpec Rect World\n    transforms =\n        { getter: .transforms,\n        , setter: (\\world -> \\comps -> {world | transforms = comps})\n        }\n\n\n    balls : ComponentSpec Ball World\n    balls =\n        { getter: .balls,\n        , setter: (\\world -> \\comps -> {world | balls = comps})\n        }\n\n    moveBalls : Float -> World -> World\n    moveBalls delta =\n        -- ...\n          stepEntities (entities2 balls transforms) (\\ent2 -> { ent2 | b = addVelocity ent2.a ent2.b delta })\n\nstepEntities goes through all the balls (any entity with a ball component and transform component)\nin this example and updates their location based on their velocity and the time elapsed.\n\nBecause moveBalls' type signature has no concept of the components involved, these systems can easily be\ncomposed to operate in sequence to create an ECS Engine.\n\n# Types\n@docs EntityID, EntitySet, ComponentSpec, EntitySpec, ComponentSet, EntityDeletor, Entity, Entity2, Entity3\n\n# Entity specs\n@docs entities, entities2, entities3\n\n# Updates and Maps\n@docs map, stepEntities, stepEntitiesWith\n\n# Initialization\n@docs initComponents, initIdSource\n\n# Deletion\n@docs deleteEntity, (&->)\n\n# Retrieval\n@docs getEntities, getEntities2, getEntities3, (&.), getEntityByUid, getEntity2ByUid, getEntity3ByUid, getComponentById, getComponent, hasComponent\n\n# Entity management\n@docs entityExistsByUid, getUidFromId, getIdFromUid\n\n# Updates\n@docs setEntity, setEntity2, setEntity3, forEntityById, forEntityByUid, (&=>), (&~>)\n\n# Creation\n@docs spawnEmpty, spawnEntity, spawnEntity2, spawnEntities, spawnEntities2, forNewEntity\n",
+    "comment": " Experimental\n\nThis library provides an easy way to construct entity-component-system style\ncodeflow in Elm. It achieves this mostly by leveraging currying and getter/setters. For example:\n\n    type alias World =\n        EntitySet\n            { transforms : ComponentSet Rect\n            , balls : ComponentSet Ball\n            }\n\n    transforms : ComponentSpec Rect World\n    transforms =\n        { getter: .transforms,\n        , setter: (\\comps world -> {world | transforms = comps})\n        }\n\n\n    balls : ComponentSpec Ball World\n    balls =\n        { getter: .balls,\n        , setter: (\\comps world -> {world | balls = comps})\n        }\n\n    moveBalls : Float -> World -> World\n    moveBalls delta =\n        -- ...\n          stepEntities (entities2 balls transforms) (\\ent2 -> { ent2 | b = addVelocity ent2.a ent2.b delta })\n\nstepEntities goes through all the balls (any entity with a ball component and transform component)\nin this example and updates their location based on their velocity and the time elapsed.\n\nBecause moveBalls' type signature has no concept of the components involved, these systems can easily be\ncomposed to operate in sequence to create an ECS Engine.\n\n\n# Types\n\n@docs EntityID, EntitySet, ComponentSpec, EntitySpec, ComponentSet, EntityDeletor, Entity, Entity2, Entity3\n\n\n# Entity specs\n\n@docs componentSpec, entities, entities2, entities3\n\n\n# Updates and Maps\n\n@docs map, stepEntities, stepEntitiesWith, stepEntitiesAndThen\n\n\n# Initialization\n\n@docs initComponents, initIdSource\n\n\n# Deletion\n\n@docs deleteEntity, (&->)\n\n\n# Retrieval\n\n@docs getEntities, getEntities2, getEntities3, (&.), getEntityByUid, getEntity2ByUid, getEntity3ByUid, getComponentById, getComponent, hasComponent\n\n\n# Entity management\n\n@docs entityExistsByUid, getUidFromId, getIdFromUid\n\n\n# Updates\n\n@docs setEntity, setEntity2, setEntity3, forEntityById, forEntityByUid, (&=>), (&~>)\n\n\n# Creation\n\n@docs spawnEmpty, spawnEntity, spawnEntity2, spawnEntities, spawnEntities2, forNewEntity, forNewEntities\n\n",
     "aliases": [
       {
         "name": "ComponentSet",
@@ -243,17 +243,22 @@
       },
       {
         "name": "&=>",
-        "comment": " Sets a particular entity's component. Used with forEntityById and forEntityByUid.\nExample:\n    (_, updatedWorld) =\n        forEntityById id world\n            &=> (locations, (0, 0))\n            &=> (sizes, (2, 6))\n\n",
+        "comment": " Sets a particular entity's component. Used with forEntityById and forEntityByUid.\nExample:\n(_, updatedWorld) =\nforEntityById id world\n&=> (locations, (0, 0))\n&=> (sizes, (2, 6))\n",
         "type": "( Maybe.Maybe Slime.EntityID, world ) -> ( Slime.ComponentSpec a world, a ) -> ( Maybe.Maybe Slime.EntityID, world )"
       },
       {
         "name": "&~>",
-        "comment": " Updates a particular entity's component. Used with forEntityById and forEntityByUid.\n    (_, updatedWorld) =\n        forEntityById id world\n            &=> (locations, moveMe)\n            &=> (sizes, shrinkMe)\n\n",
+        "comment": " Updates a particular entity's component. Used with forEntityById and forEntityByUid.\n(_, updatedWorld) =\nforEntityById id world\n&=> (locations, moveMe)\n&=> (sizes, shrinkMe)\n",
         "type": "( Maybe.Maybe Slime.EntityID, Slime.EntitySet world ) -> ( Slime.ComponentSpec a (Slime.EntitySet world) , Maybe.Maybe a -> Maybe.Maybe a ) -> ( Maybe.Maybe Slime.EntityID, Slime.EntitySet world )"
       },
       {
+        "name": "componentSpec",
+        "comment": " ",
+        "type": "(world -> Slime.ComponentSet a) -> (Slime.ComponentSet a -> world -> world) -> Slime.ComponentSpec a world"
+      },
+      {
         "name": "deleteEntity",
-        "comment": " Use as the start of a deletion block:\n\n    deletor = deleteEntity transformSpec\n        &-> massSpec\n        &-> anotherSpec\n\nThe resulting deletor takes an EntityID and a world and clears the world of that Entity.\n",
+        "comment": " Use as the start of a deletion block:\n\n    deletor =\n        deleteEntity transformSpec\n            &-> massSpec\n            &-> anotherSpec\n\nThe resulting deletor takes an EntityID and a world and clears the world of that Entity.\n\n",
         "type": "Slime.ComponentSpec a (Slime.EntitySet world) -> Slime.EntityDeletor (Slime.EntitySet world)"
       },
       {
@@ -273,7 +278,7 @@
       },
       {
         "name": "entityExistsByUid",
-        "comment": "\n",
+        "comment": " ",
         "type": "Slime.EntitySet world -> Slime.EntityID -> Bool"
       },
       {
@@ -287,8 +292,13 @@
         "type": "Slime.EntityID -> Slime.EntitySet world -> ( Maybe.Maybe Slime.EntityID, Slime.EntitySet world )"
       },
       {
+        "name": "forNewEntities",
+        "comment": " Begins a chain of sets for a certain number of new entities.\n\n    ( _, updatedWorld ) =\n        forNewEntities (List.range 0 4)\n            world\n            (\\index spawnPair ->\n                spawnPair\n                    &=> ( locations, ( index, 0 ) )\n            )\n\n",
+        "type": "List x -> Slime.EntitySet world -> (x -> ( Maybe.Maybe Slime.EntityID, Slime.EntitySet world ) -> ( Maybe.Maybe Slime.EntityID, Slime.EntitySet world )) -> ( List Slime.EntityID, Slime.EntitySet world )"
+      },
+      {
         "name": "forNewEntity",
-        "comment": " Begins a chain of sets for a new entity. Useful for complex entity spawning.\nExample:\n\n    (_, updatedWorld) =\n        forNewEntity world\n            &=> (locations (0, 0))\n            &=> (place (2, 6))\n",
+        "comment": " Begins a chain of sets for a new entity. Useful for complex entity spawning.\nExample:\n\n    ( _, updatedWorld ) =\n        forNewEntity world\n            &=> ( locations, ( 0, 0 ) )\n            &=> ( place, ( 2, 6 ) )\n\n",
         "type": "Slime.EntitySet world -> ( Maybe.Maybe Slime.EntityID, Slime.EntitySet world )"
       },
       {
@@ -405,6 +415,11 @@
         "name": "stepEntities",
         "comment": " Steps the entities in a world based on the entity spec and update function provided.\n",
         "type": "Slime.EntitySpec ent world -> (Slime.Tagged ent -> Slime.Tagged ent) -> world -> world"
+      },
+      {
+        "name": "stepEntitiesAndThen",
+        "comment": " Step entities with side effects.\n\n    stepEntitiesAndThen (entities locations) (\\entitiy ->\n      (entity, \\newWorld -> forNewEntity newWorld\n          &=> (sparkles, { x = entity.a.x, y = entity.a.y })\n          |> Tuple.second\n      ))\n\nWhen there are no side effects in an action, use `identity` for the second value.\n\n",
+        "type": "Slime.EntitySpec ent world -> (Slime.Tagged ent -> ( Slime.Tagged ent, world -> world )) -> world -> world"
       },
       {
         "name": "stepEntitiesWith",

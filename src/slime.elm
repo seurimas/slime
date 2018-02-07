@@ -34,6 +34,7 @@ module Slime
         , entities3
         , stepEntities
         , stepEntitiesWith
+        , stepEntitiesAndThen
         , getComponentById
         , getComponent
         , hasComponent
@@ -44,6 +45,7 @@ module Slime
         , forEntityById
         , forEntityByUid
         , forNewEntity
+        , forNewEntities
         , (&=>)
         , (&~>)
         )
@@ -83,32 +85,51 @@ in this example and updates their location based on their velocity and the time 
 Because moveBalls' type signature has no concept of the components involved, these systems can easily be
 composed to operate in sequence to create an ECS Engine.
 
+
 # Types
+
 @docs EntityID, EntitySet, ComponentSpec, EntitySpec, ComponentSet, EntityDeletor, Entity, Entity2, Entity3
 
+
 # Entity specs
+
 @docs componentSpec, entities, entities2, entities3
 
+
 # Updates and Maps
-@docs map, stepEntities, stepEntitiesWith
+
+@docs map, stepEntities, stepEntitiesWith, stepEntitiesAndThen
+
 
 # Initialization
+
 @docs initComponents, initIdSource
 
+
 # Deletion
+
 @docs deleteEntity, (&->)
 
+
 # Retrieval
+
 @docs getEntities, getEntities2, getEntities3, (&.), getEntityByUid, getEntity2ByUid, getEntity3ByUid, getComponentById, getComponent, hasComponent
 
+
 # Entity management
+
 @docs entityExistsByUid, getUidFromId, getIdFromUid
 
+
 # Updates
+
 @docs setEntity, setEntity2, setEntity3, forEntityById, forEntityByUid, (&=>), (&~>)
 
+
 # Creation
-@docs spawnEmpty, spawnEntity, spawnEntity2, spawnEntities, spawnEntities2, forNewEntity
+
+@docs spawnEmpty, spawnEntity, spawnEntity2, spawnEntities, spawnEntities2, forNewEntity, forNewEntities
+
 -}
 
 import Array exposing (Array, length, append, push, get, set, repeat, indexedMap, toList)
@@ -125,8 +146,7 @@ type alias ComponentSpec a world =
     }
 
 
-{-|
--}
+{-| -}
 componentSpec : (world -> ComponentSet a) -> (ComponentSet a -> world -> world) -> ComponentSpec a world
 componentSpec getter setter =
     { getter = getter
@@ -306,8 +326,7 @@ claimId ({ ids, uids, uidToId, idToUid } as idSource) =
                 ( idSource, 0, 0 )
 
 
-{-|
--}
+{-| -}
 entityExistsByUid : EntitySet world -> EntityID -> Bool
 entityExistsByUid world id =
     getIdFromUid world id /= Nothing
@@ -371,11 +390,13 @@ getEntity3ByUid specA specB specC world uid =
 
 {-| Use as the start of a deletion block:
 
-    deletor = deleteEntity transformSpec
-        &-> massSpec
-        &-> anotherSpec
+    deletor =
+        deleteEntity transformSpec
+            &-> massSpec
+            &-> anotherSpec
 
 The resulting deletor takes an EntityID and a world and clears the world of that Entity.
+
 -}
 deleteEntity : ComponentSpec a (EntitySet world) -> EntityDeletor (EntitySet world)
 deleteEntity spec id world =
@@ -568,14 +589,43 @@ stepEntitiesWith { getter, setter } updateWith ( world, extra ) =
         )
 
 
+{-| Step entities with side effects.
+
+    stepEntitiesAndThen (entities locations) (\entitiy ->
+      (entity, \newWorld -> forNewEntity newWorld
+          &=> (sparkles, { x = entity.a.x, y = entity.a.y })
+          |> Tuple.second
+      ))
+
+When there are no side effects in an action, use `identity` for the second value.
+
+-}
+stepEntitiesAndThen : EntitySpec ent world -> (Tagged ent -> ( Tagged ent, world -> world )) -> world -> world
+stepEntitiesAndThen entSpec updater world =
+    let
+        joinedUpdater ( entity, sideEffectsSoFar ) =
+            let
+                ( updatedEntity, mySideEffects ) =
+                    updater entity
+            in
+                ( updatedEntity, sideEffectsSoFar >> mySideEffects )
+
+        ( updatedWorld, sideEffects ) =
+            stepEntitiesWith entSpec joinedUpdater ( world, identity )
+    in
+        sideEffects updatedWorld
+
+
 {-| Filters a step entity block. Example:
 
     stepGravity world =
         (stepEntities2 transform velocity
             |> filtered
                 (\ent2 -> getComponentById antigrav ent2.id world == Nothing)
-                applyGravity)
+                applyGravity
+        )
             world
+
 -}
 filtered :
     (Tagged x -> Bool)
@@ -773,10 +823,11 @@ forEntityByUid uid world =
 {-| Begins a chain of sets for a new entity. Useful for complex entity spawning.
 Example:
 
-    (_, updatedWorld) =
+    ( _, updatedWorld ) =
         forNewEntity world
-            &=> (locations (0, 0))
-            &=> (place (2, 6))
+            &=> ( locations, ( 0, 0 ) )
+            &=> ( place, ( 2, 6 ) )
+
 -}
 forNewEntity : EntitySet world -> ( Maybe EntityID, EntitySet world )
 forNewEntity world =
@@ -787,13 +838,44 @@ forNewEntity world =
         ( Just newId, updatedWorld )
 
 
+{-| Begins a chain of sets for a certain number of new entities.
+
+    ( _, updatedWorld ) =
+        forNewEntities (List.range 0 4)
+            world
+            (\index spawnPair ->
+                spawnPair
+                    &=> ( locations, ( index, 0 ) )
+            )
+
+-}
+forNewEntities : List x -> EntitySet world -> (x -> ( Maybe EntityID, EntitySet world ) -> ( Maybe EntityID, EntitySet world )) -> ( List EntityID, EntitySet world )
+forNewEntities list world spawner =
+    let
+        mergeNewItem newItem ( idAcc, worldAcc ) =
+            let
+                ( spawnedId, withEntity ) =
+                    forNewEntity worldAcc
+
+                ( _, withSpawned ) =
+                    spawner newItem ( spawnedId, withEntity )
+            in
+                case spawnedId of
+                    Just newId ->
+                        ( newId :: idAcc, withSpawned )
+
+                    Nothing ->
+                        ( idAcc, withSpawned )
+    in
+        List.foldl mergeNewItem ( [], world ) list
+
+
 {-| Sets a particular entity's component. Used with forEntityById and forEntityByUid.
 Example:
-    (_, updatedWorld) =
-        forEntityById id world
-            &=> (locations, (0, 0))
-            &=> (sizes, (2, 6))
-
+(_, updatedWorld) =
+forEntityById id world
+&=> (locations, (0, 0))
+&=> (sizes, (2, 6))
 -}
 (&=>) : ( Maybe EntityID, world ) -> ( ComponentSpec a world, a ) -> ( Maybe EntityID, world )
 (&=>) ( mid, world ) ( { getter, setter }, component ) =
@@ -814,11 +896,10 @@ Example:
 
 
 {-| Updates a particular entity's component. Used with forEntityById and forEntityByUid.
-    (_, updatedWorld) =
-        forEntityById id world
-            &=> (locations, moveMe)
-            &=> (sizes, shrinkMe)
-
+(_, updatedWorld) =
+forEntityById id world
+&=> (locations, moveMe)
+&=> (sizes, shrinkMe)
 -}
 (&~>) : ( Maybe EntityID, EntitySet world ) -> ( ComponentSpec a (EntitySet world), Maybe a -> Maybe a ) -> ( Maybe EntityID, EntitySet world )
 (&~>) ( mid, world ) ( { getter, setter } as spec, update ) =
