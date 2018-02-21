@@ -3,6 +3,7 @@ module Slime.Engine
         ( Engine
         , initEngine
         , Message(..)
+        , noop
         , engineSubs
         , timed
         , untimed
@@ -32,18 +33,27 @@ module Slime.Engine
 
 
 # The Engine
-@docs Engine, initEngine, engineSubs, engineUpdate, Message
+
+@docs Engine, initEngine, engineSubs, engineUpdate, Message, noop
+
 
 # System and listener options
+
 @docs timed, untimed, noOptions, cmds, deletes, cmdsAndDeletes
 
+
 # Systems
+
 @docs System, untimedSystem, timedSystem, systemWith, systemMap
 
+
 # Listeners
+
 @docs Listener, listener, listenerWith, listenerMap
 
+
 # Manual methods
+
 @docs applyListeners, applySystems
 
 -}
@@ -102,11 +112,13 @@ applySystemStep deletor { updatedWorld, commands, deletes } =
 with control over side effects (deleting entities and sending commands).
 
 Each of the types has a different function signature for different options:
- * Time: Accepts deltaTime as its first argument.
- * Commands: The return value includes messages. The extra value is included as part of a tuple.
- * Deletes: The return value includes EntityIDs which should be deleted. The extra value is included as part of a tuple.
+
+  - Time: Accepts deltaTime as its first argument.
+  - Commands: The return value includes messages. The extra value is included as part of a tuple.
+  - Deletes: The return value includes EntityIDs which should be deleted. The extra value is included as part of a tuple.
 
 There is also a Basic, which has no options.
+
 -}
 type System world msg
     = System (Float -> world -> SystemStep world msg)
@@ -238,6 +250,7 @@ listenerMap toSub fromSub (Listener listener) =
 {-| The Engine type is used as the first argument of applySystems and applyListeners.
 
 With the engine, update functions can be massively simplified, in a true ECS fashion.
+
 -}
 type Engine world msg
     = Engine
@@ -318,6 +331,14 @@ applyListeners (Engine engine) world msg =
 type Message msg
     = Tick Float
     | Msg msg
+    | Noop
+
+
+{-| For use when you need to pass a do-nothing message.
+-}
+noop : Message msg
+noop =
+    Noop
 
 
 {-| Takes the subscriptions for your app and wraps them for the engine. Time messages are provided by the engine.
@@ -325,8 +346,9 @@ type Message msg
 For use with engineUpdate.
 
 Example:
-    Sub.batch [ ... ]
-        |> engineSubs
+Sub.batch [ ... ]
+|> engineSubs
+
 -}
 engineSubs : Sub msg -> Sub (Message msg)
 engineSubs subs =
@@ -361,3 +383,6 @@ engineUpdate engine msg world =
                 ( updatedWorld
                 , Cmd.map Msg commands
                 )
+
+        Noop ->
+            world ! []
