@@ -18,6 +18,8 @@ elm reactor
 ```
 
 # Change log
+* 2.1.0 -> 2.1.1
+  * Small documentation change, and testing a republish of the package to fix installation issues.
 * 2.0.0 -> 2.1.0
   * Added `componentSpec` for a type-ignorant constructor. Use that instead of { getter, setter } records.
   * Added `stepEntitiesAndThen`, for steppers who want to have side effects on the world. This won't work for every case, but it will cover a lot.
