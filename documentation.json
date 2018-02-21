@@ -1,12 +1,12 @@
 [
   {
     "name": "Slime.Engine",
-    "comment": " Engine provides a simple way to manage a growing game. To do so, it needs to be provided with a few values:\n\n    -- An entity deletor. This is composed via Slime.deleteEntity and Slime.(&->). (Entity creation is handled more lazily and therefor does not require a matching value)\n    -- A list of Systems. These are explained further later, but they basically conform to the usual ECS model.\n    -- A list of Listeners. These allow the world to be updated based on TEA messages.\n\n\n# The Engine\n@docs Engine, initEngine, engineSubs, engineUpdate, Message\n\n# System and listener options\n@docs timed, untimed, noOptions, cmds, deletes, cmdsAndDeletes\n\n# Systems\n@docs System, untimedSystem, timedSystem, systemWith, systemMap\n\n# Listeners\n@docs Listener, listener, listenerWith, listenerMap\n\n# Manual methods\n@docs applyListeners, applySystems\n\n",
+    "comment": " Engine provides a simple way to manage a growing game. To do so, it needs to be provided with a few values:\n\n    -- An entity deletor. This is composed via Slime.deleteEntity and Slime.(&->). (Entity creation is handled more lazily and therefor does not require a matching value)\n    -- A list of Systems. These are explained further later, but they basically conform to the usual ECS model.\n    -- A list of Listeners. These allow the world to be updated based on TEA messages.\n\n\n# The Engine\n\n@docs Engine, initEngine, engineSubs, engineUpdate, Message, noop\n\n\n# System and listener options\n\n@docs timed, untimed, noOptions, cmds, deletes, cmdsAndDeletes\n\n\n# Systems\n\n@docs System, untimedSystem, timedSystem, systemWith, systemMap\n\n\n# Listeners\n\n@docs Listener, listener, listenerWith, listenerMap\n\n\n# Manual methods\n\n@docs applyListeners, applySystems\n\n",
     "aliases": [],
     "types": [
       {
         "name": "Engine",
-        "comment": " The Engine type is used as the first argument of applySystems and applyListeners.\n\nWith the engine, update functions can be massively simplified, in a true ECS fashion.\n",
+        "comment": " The Engine type is used as the first argument of applySystems and applyListeners.\n\nWith the engine, update functions can be massively simplified, in a true ECS fashion.\n\n",
         "args": [
           "world",
           "msg"
@@ -40,12 +40,16 @@
             [
               "msg"
             ]
+          ],
+          [
+            "Noop",
+            []
           ]
         ]
       },
       {
         "name": "System",
-        "comment": " A System constructed in this way will be used by Engine to update the world\nwith control over side effects (deleting entities and sending commands).\n\nEach of the types has a different function signature for different options:\n * Time: Accepts deltaTime as its first argument.\n * Commands: The return value includes messages. The extra value is included as part of a tuple.\n * Deletes: The return value includes EntityIDs which should be deleted. The extra value is included as part of a tuple.\n\nThere is also a Basic, which has no options.\n",
+        "comment": " A System constructed in this way will be used by Engine to update the world\nwith control over side effects (deleting entities and sending commands).\n\nEach of the types has a different function signature for different options:\n\n  - Time: Accepts deltaTime as its first argument.\n  - Commands: The return value includes messages. The extra value is included as part of a tuple.\n  - Deletes: The return value includes EntityIDs which should be deleted. The extra value is included as part of a tuple.\n\nThere is also a Basic, which has no options.\n\n",
         "args": [
           "world",
           "msg"
@@ -81,7 +85,7 @@
       },
       {
         "name": "engineSubs",
-        "comment": " Takes the subscriptions for your app and wraps them for the engine. Time messages are provided by the engine.\n\nFor use with engineUpdate.\n\nExample:\n    Sub.batch [ ... ]\n        |> engineSubs\n",
+        "comment": " Takes the subscriptions for your app and wraps them for the engine. Time messages are provided by the engine.\n\nFor use with engineUpdate.\n\nExample:\nSub.batch [ ... ]\n|> engineSubs\n\n",
         "type": "Platform.Sub.Sub msg -> Platform.Sub.Sub (Slime.Engine.Message msg)"
       },
       {
@@ -113,6 +117,11 @@
         "name": "noOptions",
         "comment": " Use in systemWith/listenerWith to define a system or listener with no commands or deletes.\n",
         "type": "world -> Slime.Engine.SystemStep world msg"
+      },
+      {
+        "name": "noop",
+        "comment": " For use when you need to pass a do-nothing message.\n",
+        "type": "Slime.Engine.Message msg"
       },
       {
         "name": "systemMap",
@@ -149,7 +158,7 @@
   },
   {
     "name": "Slime",
-    "comment": " Experimental\n\nThis library provides an easy way to construct entity-component-system style\ncodeflow in Elm. It achieves this mostly by leveraging currying and getter/setters. For example:\n\n    type alias World =\n        EntitySet\n            { transforms : ComponentSet Rect\n            , balls : ComponentSet Ball\n            }\n\n    transforms : ComponentSpec Rect World\n    transforms =\n        { getter: .transforms,\n        , setter: (\\comps world -> {world | transforms = comps})\n        }\n\n\n    balls : ComponentSpec Ball World\n    balls =\n        { getter: .balls,\n        , setter: (\\comps world -> {world | balls = comps})\n        }\n\n    moveBalls : Float -> World -> World\n    moveBalls delta =\n        -- ...\n          stepEntities (entities2 balls transforms) (\\ent2 -> { ent2 | b = addVelocity ent2.a ent2.b delta })\n\nstepEntities goes through all the balls (any entity with a ball component and transform component)\nin this example and updates their location based on their velocity and the time elapsed.\n\nBecause moveBalls' type signature has no concept of the components involved, these systems can easily be\ncomposed to operate in sequence to create an ECS Engine.\n\n\n# Types\n\n@docs EntityID, EntitySet, ComponentSpec, EntitySpec, ComponentSet, EntityDeletor, Entity, Entity2, Entity3\n\n\n# Entity specs\n\n@docs componentSpec, entities, entities2, entities3\n\n\n# Updates and Maps\n\n@docs map, stepEntities, stepEntitiesWith, stepEntitiesAndThen\n\n\n# Initialization\n\n@docs initComponents, initIdSource\n\n\n# Deletion\n\n@docs deleteEntity, (&->)\n\n\n# Retrieval\n\n@docs getEntities, getEntities2, getEntities3, (&.), getEntityByUid, getEntity2ByUid, getEntity3ByUid, getComponentById, getComponent, hasComponent\n\n\n# Entity management\n\n@docs entityExistsByUid, getUidFromId, getIdFromUid\n\n\n# Updates\n\n@docs setEntity, setEntity2, setEntity3, forEntityById, forEntityByUid, (&=>), (&~>)\n\n\n# Creation\n\n@docs spawnEmpty, spawnEntity, spawnEntity2, spawnEntities, spawnEntities2, forNewEntity, forNewEntities\n\n",
+    "comment": " Experimental\n\nThis library provides an easy way to construct entity-component-system style\ncodeflow in Elm. It achieves this mostly by leveraging currying and getter/setters. For example:\n\n    type alias World =\n        EntitySet\n            { transforms : ComponentSet Rect\n            , balls : ComponentSet Ball\n            }\n\n    transforms : ComponentSpec Rect World\n    transforms =\n        { getter: .transforms,\n        , setter: (\\comps world -> {world | transforms = comps})\n        }\n\n\n    balls : ComponentSpec Ball World\n    balls =\n        { getter: .balls,\n        , setter: (\\comps world -> {world | balls = comps})\n        }\n\n    moveBalls : Float -> World -> World\n    moveBalls delta =\n        -- ...\n          stepEntities (entities2 balls transforms) (\\ent2 -> { ent2 | b = addVelocity ent2.a ent2.b delta })\n\nstepEntities goes through all the balls (any entity with a ball component and transform component)\nin this example and updates their location based on their velocity and the time elapsed.\n\nBecause moveBalls' type signature has no concept of the components involved, these systems can easily be\ncomposed to operate in sequence to create an ECS Engine.\n\n\n# Types\n\n@docs EntityID, EntitySet, ComponentSpec, EntitySpec, ComponentSet, EntityDeletor, Entity, Entity2, Entity3\n\n\n# Entity specs\n\n@docs componentSpec, entities, entities2, entities3\n\n\n# Updates and Maps\n\n@docs map, stepEntities, stepEntitiesWith, stepEntitiesAndThen\n\n\n# Initialization\n\n@docs initComponents, initIdSource\n\n\n# Deletion\n\n@docs deleteEntity, (&->)\n\n\n# Retrieval\n\n@docs getEntities, getEntities2, getEntities3, (&.), getEntityByUid, getEntity2ByUid, getEntity3ByUid, getComponentById, getComponent, hasComponent\n\n\n# Entity management\n\n@docs entityExistsByUid, getUidFromId, getIdFromUid\n\n\n# Updates\n\n@docs setEntity, setEntity2, setEntity3, forEntityById, forEntityByUid, (&=>), (&~>)\n\n\n# Creation\n\n@docs forNewEntity, forNewEntities, spawnEmpty, spawnEntity, spawnEntity2, spawnEntities, spawnEntities2\n\n",
     "aliases": [
       {
         "name": "ComponentSet",
@@ -388,7 +397,7 @@
       },
       {
         "name": "spawnEmpty",
-        "comment": " Spawns an empty Entity. Useful if you just need an Entity ID and want to\nset the components manually.\n",
+        "comment": " Spawns an empty Entity. Useful if you just need an Entity ID and want to\nset the components manually. Prefer `forEntityWith` in most cases.\n",
         "type": "Slime.EntitySet world -> ( Slime.EntitySet world, Slime.EntityID, Slime.EntityID )"
       },
       {

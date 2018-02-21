@@ -128,7 +128,7 @@ composed to operate in sequence to create an ECS Engine.
 
 # Creation
 
-@docs spawnEmpty, spawnEntity, spawnEntity2, spawnEntities, spawnEntities2, forNewEntity, forNewEntities
+@docs forNewEntity, forNewEntities, spawnEmpty, spawnEntity, spawnEntity2, spawnEntities, spawnEntities2
 
 -}
 
@@ -444,7 +444,7 @@ infixl 1 &->
 
 
 {-| Spawns an empty Entity. Useful if you just need an Entity ID and want to
-set the components manually.
+set the components manually. Prefer `forEntityWith` in most cases.
 -}
 spawnEmpty : EntitySet world -> ( EntitySet world, EntityID, EntityID )
 spawnEmpty entitySet =
