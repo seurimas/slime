@@ -872,10 +872,19 @@ forNewEntities list world spawner =
 
 {-| Sets a particular entity's component. Used with forEntityById and forEntityByUid.
 Example:
-(_, updatedWorld) =
-forEntityById id world
-&=> (locations, (0, 0))
-&=> (sizes, (2, 6))
+
+    ( _, updatedWorld ) =
+        forEntityById id world
+            &=> ( locations, ( 0, 0 ) )
+            &=> ( sizes, ( 2, 6 ) )
+
+(Note: Tuple.second is a good way to end off a spawn, if you don't care about the entityId)
+
+    updatedWorld =
+        forEntityById id world
+            &=> ( sizes, ( 2, 6 ) )
+            |> Tuple.second
+
 -}
 (&=>) : ( Maybe EntityID, world ) -> ( ComponentSpec a world, a ) -> ( Maybe EntityID, world )
 (&=>) ( mid, world ) ( { getter, setter }, component ) =

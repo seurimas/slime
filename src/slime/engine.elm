@@ -346,8 +346,9 @@ noop =
 For use with engineUpdate.
 
 Example:
-Sub.batch [ ... ]
-|> engineSubs
+
+    Sub.batch [ ... ]
+        |> engineSubs
 
 -}
 engineSubs : Sub msg -> Sub (Message msg)
