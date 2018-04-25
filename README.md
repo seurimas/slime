@@ -18,6 +18,9 @@ elm reactor
 ```
 
 # Change log
+* 2.1.1 -> 3.0.0
+  * Small addition of a `Noop` engine message.
+  * Fix for case-sensitive OSes.
 * 2.1.0 -> 2.1.1
   * Small documentation change, and testing a republish of the package to fix installation issues.
 * 2.0.0 -> 2.1.0
